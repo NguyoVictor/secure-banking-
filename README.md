@@ -1,5 +1,5 @@
-# Vulnerable Bank Application 🏦
-
+# OTF Bank Application 🏦
+This is a vulnerable bank web application for our school project that Kerama and I did for our Web application unit. It has several vulerabilities, including the top 10 OWASP vulnerabilities. We later patched them for secure banking operations.
 A deliberately vulnerable web application for practicing application security testing of Web, APIs and LLMs, secure code review and implementing security in CI/CD pipelines.
 
 ⚠️ **WARNING: This application is intentionally vulnerable and should only be used for educational purposes in isolated environments.**
