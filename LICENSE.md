@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2025 Al-Amir Badmus
+Copyright (c) 2025 Al-OTF Bank(Kerama and Victor)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
