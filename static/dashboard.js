@@ -5,48 +5,86 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('current-date').textContent = today.toLocaleDateString('en-US', options);
 });
 
-// Vulnerability: Token stored in localStorage
-document.addEventListener('DOMContentLoaded', function() {
-    const token = localStorage.getItem('jwt_token');
-    if (!token) {
+// // Vulnerability: Token stored in localStorage
+// document.addEventListener('DOMContentLoaded', function() {
+//     const token = localStorage.getItem('jwt_token');
+//     if (!token) {
+//         window.location.href = '/login';
+//         return;
+//     }
+
+//     fetchTransactions();
+
+//     // Add event listeners
+//     document.getElementById('transferForm').addEventListener('submit', handleTransfer);
+//     document.getElementById('loanForm').addEventListener('submit', handleLoanRequest);
+//     document.getElementById('profileUploadForm').addEventListener('submit', handleProfileUpload);
+//     const profileUrlBtn = document.getElementById('profileUrlButton');
+//     if (profileUrlBtn) {
+//         profileUrlBtn.addEventListener('click', handleProfileUrlImport);
+//     }
+    
+//     // Add virtual cards event listener
+//     document.getElementById('createCardForm').addEventListener('submit', handleCreateCard);
+    
+//     // Load virtual cards
+//     fetchVirtualCards();
+
+//     // Add bill payment functions
+//     document.getElementById('payBillForm').addEventListener('submit', handleBillPayment);
+    
+//     // Load initial data
+//     loadBillCategories();
+//     loadPaymentHistory();
+
+//     // Set active nav link based on URL hash
+//     const hash = window.location.hash || '#profile';
+//     const activeLink = document.querySelector(`.nav-link[href='${hash}']`);
+//     if (activeLink) {
+//         setActiveLink(activeLink);
+//     }
+    
+//     // Add scroll event listener
+//     window.addEventListener('scroll', handleScroll);
+// });
+
+// Secure version: Token stored in HttpOnly cookie
+document.addEventListener('DOMContentLoaded', async function () {
+    try {
+        const response = await fetch('/api/auth/me', {
+            method: 'GET',
+            credentials: 'include' // REQUIRED for cookies
+        });
+
+        if (!response.ok) {
+            window.location.href = '/login';
+            return;
+        }
+
+        fetchTransactions();
+
+        document.getElementById('transferForm')?.addEventListener('submit', handleTransfer);
+        document.getElementById('loanForm')?.addEventListener('submit', handleLoanRequest);
+        document.getElementById('profileUploadForm')?.addEventListener('submit', handleProfileUpload);
+
+        document.getElementById('profileUrlButton')?.addEventListener('click', handleProfileUrlImport);
+        document.getElementById('createCardForm')?.addEventListener('submit', handleCreateCard);
+        document.getElementById('payBillForm')?.addEventListener('submit', handleBillPayment);
+
+        fetchVirtualCards();
+        loadBillCategories();
+        loadPaymentHistory();
+
+        const hash = window.location.hash || '#profile';
+        const activeLink = document.querySelector(`.nav-link[href='${hash}']`);
+        if (activeLink) setActiveLink(activeLink);
+
+        window.addEventListener('scroll', handleScroll);
+    } catch (error) {
         window.location.href = '/login';
-        return;
     }
-
-    fetchTransactions();
-
-    // Add event listeners
-    document.getElementById('transferForm').addEventListener('submit', handleTransfer);
-    document.getElementById('loanForm').addEventListener('submit', handleLoanRequest);
-    document.getElementById('profileUploadForm').addEventListener('submit', handleProfileUpload);
-    const profileUrlBtn = document.getElementById('profileUrlButton');
-    if (profileUrlBtn) {
-        profileUrlBtn.addEventListener('click', handleProfileUrlImport);
-    }
-    
-    // Add virtual cards event listener
-    document.getElementById('createCardForm').addEventListener('submit', handleCreateCard);
-    
-    // Load virtual cards
-    fetchVirtualCards();
-
-    // Add bill payment functions
-    document.getElementById('payBillForm').addEventListener('submit', handleBillPayment);
-    
-    // Load initial data
-    loadBillCategories();
-    loadPaymentHistory();
-
-    // Set active nav link based on URL hash
-    const hash = window.location.hash || '#profile';
-    const activeLink = document.querySelector(`.nav-link[href='${hash}']`);
-    if (activeLink) {
-        setActiveLink(activeLink);
-    }
-    
-    // Add scroll event listener
-    window.addEventListener('scroll', handleScroll);
 });
+
 
 // Navigation functions
 function setActiveLink(element) {

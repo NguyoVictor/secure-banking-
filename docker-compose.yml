@@ -17,7 +17,7 @@ services:
     depends_on:
       - db
     volumes:
-      - ./static/uploads:/app/static/uploads
+      - .:/app
     networks:
       - vuln_network
 
