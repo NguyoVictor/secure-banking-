@@ -296,53 +296,94 @@ async function handleProfileUrlImport() {
 }
 
 
-// Fetch transactions
-// Vulnerability: No rate limiting on transaction fetches
-async function fetchTransactions() {
-    try {
-        const accountNumber = document.getElementById('account-number').textContent;
-        const response = await fetch(`/transactions/${accountNumber}`, {
-            headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('jwt_token')
-            }
-        });
+// // Fetch transactions
+// // Vulnerability: No rate limiting on transaction fetches
+// async function fetchTransactions() {
+//     try {
+//         const accountNumber = document.getElementById('account-number').textContent;
+//         const response = await fetch(`/transactions/${accountNumber}`, {
+//             headers: {
+//                 'Authorization': 'Bearer ' + localStorage.getItem('jwt_token')
+//             }
+//         });
 
-        const data = await response.json();
-        if (data.status === 'success') {
-            if (data.transactions.length === 0) {
-                document.getElementById('transaction-list').innerHTML = '<p style="text-align: center; padding: 2rem;">No transactions found</p>';
-                return;
-            }
+//         const data = await response.json();
+//         if (data.status === 'success') {
+//             if (data.transactions.length === 0) {
+//                 document.getElementById('transaction-list').innerHTML = '<p style="text-align: center; padding: 2rem;">No transactions found</p>';
+//                 return;
+//             }
             
-            // Vulnerability: innerHTML used with unsanitized data
-            const transactionHtml = data.transactions.map(t => {
-                const isOutgoing = t.from_account === accountNumber;
-                const transactionType = isOutgoing ? 'sent' : 'received';
+//             // Vulnerability: innerHTML used with unsanitized data
+//             const transactionHtml = data.transactions.map(t => {
+//                 const isOutgoing = t.from_account === accountNumber;
+//                 const transactionType = isOutgoing ? 'sent' : 'received';
                 
-                return `
-                    <div class="transaction-item ${transactionType}">
-                        <div class="transaction-details">
-                            <div class="transaction-account">
-                                ${isOutgoing ? 'To: ' + t.to_account : 'From: ' + t.from_account}
-                            </div>
-                            <div class="transaction-date">${t.timestamp}</div>
-                            ${t.description ? `<div class="transaction-description">${t.description}</div>` : ''}
-                        </div>
-                        <div class="transaction-amount ${transactionType}">
-                            ${isOutgoing ? '-' : '+'}$${Math.abs(t.amount)}
-                        </div>
-                    </div>
-                `;
-            }).join('');
+//                 return `
+//                     <div class="transaction-item ${transactionType}">
+//                         <div class="transaction-details">
+//                             <div class="transaction-account">
+//                                 ${isOutgoing ? 'To: ' + t.to_account : 'From: ' + t.from_account}
+//                             </div>
+//                             <div class="transaction-date">${t.timestamp}</div>
+//                             ${t.description ? `<div class="transaction-description">${t.description}</div>` : ''}
+//                         </div>
+//                         <div class="transaction-amount ${transactionType}">
+//                             ${isOutgoing ? '-' : '+'}$${Math.abs(t.amount)}
+//                         </div>
+//                     </div>
+//                 `;
+//             }).join('');
             
-            document.getElementById('transaction-list').innerHTML = transactionHtml;
-        } else {
-            document.getElementById('transaction-list').innerHTML = '<p style="text-align: center; padding: 2rem;">Error loading transactions</p>';
-        }
-    } catch (error) {
-        document.getElementById('transaction-list').innerHTML = '<p style="text-align: center; padding: 2rem;">Error loading transactions</p>';
+//             document.getElementById('transaction-list').innerHTML = transactionHtml;
+//         } else {
+//             document.getElementById('transaction-list').innerHTML = '<p style="text-align: center; padding: 2rem;">Error loading transactions</p>';
+//         }
+//     } catch (error) {
+//         document.getElementById('transaction-list').innerHTML = '<p style="text-align: center; padding: 2rem;">Error loading transactions</p>';
+//     }
+// }
+
+// Security fix: Replaced innerHTML rendering with safe DOM-based rendering to prevent XSS attacks
+const list = document.getElementById('transaction-list');
+list.innerHTML = '';
+
+data.transactions.forEach(t => {
+    const isOutgoing = t.from_account === accountNumber;
+    const transactionType = isOutgoing ? 'sent' : 'received';
+
+    const item = document.createElement('div');
+    item.className = `transaction-item ${transactionType}`;
+
+    const details = document.createElement('div');
+    details.className = 'transaction-details';
+
+    const account = document.createElement('div');
+    account.className = 'transaction-account';
+    account.textContent = isOutgoing ? `To: ${t.to_account}` : `From: ${t.from_account}`;
+
+    const date = document.createElement('div');
+    date.className = 'transaction-date';
+    date.textContent = t.timestamp;
+
+    details.appendChild(account);
+    details.appendChild(date);
+
+    if (t.description) {
+        const desc = document.createElement('div');
+        desc.className = 'transaction-description';
+        desc.textContent = t.description;
+        details.appendChild(desc);
     }
-}
+
+    const amount = document.createElement('div');
+    amount.className = `transaction-amount ${transactionType}`;
+    amount.textContent = `${isOutgoing ? '-' : '+'}$${Math.abs(t.amount)}`;
+
+    item.appendChild(details);
+    item.appendChild(amount);
+    list.appendChild(item);
+});
 
 // Virtual Cards Management
 let virtualCards = [];
