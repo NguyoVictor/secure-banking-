@@ -1232,53 +1232,63 @@ def metadata_root(current_user):
     )
 
 
-@app.route('/latest/meta-data/ami-id', methods=['GET'])
-def metadata_ami():
-    if not _is_loopback_request():
-        return make_response('Forbidden', 403)
-    return make_response('ami-0demo1234567890\n', 200)
+# @app.route('/latest/meta-data/ami-id', methods=['GET'])
+# def metadata_ami():
+#     if not _is_loopback_request():
+#         return make_response('Forbidden', 403)
+#     return make_response('ami-0demo1234567890\n', 200)
 
-@app.route('/latest/meta-data/hostname', methods=['GET'])
-def metadata_hostname():
-    if not _is_loopback_request():
-        return make_response('Forbidden', 403)
-    return make_response('vulnbank.internal\n', 200)
+# @app.route('/latest/meta-data/hostname', methods=['GET'])
+# def metadata_hostname():
+#     if not _is_loopback_request():
+#         return make_response('Forbidden', 403)
+#     return make_response('vulnbank.internal\n', 200)
 
-@app.route('/latest/meta-data/instance-id', methods=['GET'])
-def metadata_instance():
-    if not _is_loopback_request():
-        return make_response('Forbidden', 403)
-    return make_response('i-0demo1234567890\n', 200)
+# @app.route('/latest/meta-data/instance-id', methods=['GET'])
+# def metadata_instance():
+#     if not _is_loopback_request():
+#         return make_response('Forbidden', 403)
+#     return make_response('i-0demo1234567890\n', 200)
 
-@app.route('/latest/meta-data/local-ipv4', methods=['GET'])
-def metadata_local_ip():
-    if not _is_loopback_request():
-        return make_response('Forbidden', 403)
-    return make_response('127.0.0.1\n', 200)
+# @app.route('/latest/meta-data/local-ipv4', methods=['GET'])
+# def metadata_local_ip():
+#     if not _is_loopback_request():
+#         return make_response('Forbidden', 403)
+#     return make_response('127.0.0.1\n', 200)
 
-@app.route('/latest/meta-data/public-ipv4', methods=['GET'])
-def metadata_public_ip():
-    if not _is_loopback_request():
-        return make_response('Forbidden', 403)
-    return make_response('198.51.100.42\n', 200)
+# @app.route('/latest/meta-data/public-ipv4', methods=['GET'])
+# def metadata_public_ip():
+#     if not _is_loopback_request():
+#         return make_response('Forbidden', 403)
+#     return make_response('198.51.100.42\n', 200)
 
-@app.route('/latest/meta-data/security-groups', methods=['GET'])
-def metadata_sg():
-    if not _is_loopback_request():
-        return make_response('Forbidden', 403)
-    return make_response('default\n', 200)
+# @app.route('/latest/meta-data/security-groups', methods=['GET'])
+# def metadata_sg():
+#     if not _is_loopback_request():
+#         return make_response('Forbidden', 403)
+#     return make_response('default\n', 200)
 
-@app.route('/latest/meta-data/iam/', methods=['GET'])
-def metadata_iam_root():
-    if not _is_loopback_request():
-        return make_response('Forbidden', 403)
-    return make_response('security-credentials/\n', 200)
+# @app.route('/latest/meta-data/iam/', methods=['GET'])
+# def metadata_iam_root():
+#     if not _is_loopback_request():
+#         return make_response('Forbidden', 403)
+#     return make_response('security-credentials/\n', 200)
 
-@app.route('/latest/meta-data/iam/security-credentials/', methods=['GET'])
-def metadata_iam_list():
-    if not _is_loopback_request():
-        return make_response('Forbidden', 403)
-    return make_response('vulnbank-role\n', 200)
+# @app.route('/latest/meta-data/iam/security-credentials/', methods=['GET'])
+# def metadata_iam_list():
+#     if not _is_loopback_request():
+#         return make_response('Forbidden', 403)
+#     return make_response('vulnbank-role\n', 200)
+
+@app.route('/latest/meta-data/<path:_>', methods=['GET'])
+@token_required
+def metadata_disabled(current_user, _):
+    if not current_user.get('is_admin', False):
+        return jsonify({'error': 'Forbidden'}), 403
+
+    return jsonify({
+        'error': 'Cloud metadata service disabled'
+    }), 404
 
 # @app.route('/latest/meta-data/iam/security-credentials/vulnbank-role', methods=['GET'])
 # def metadata_iam_role():
