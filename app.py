@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify, make_response
+from flask import request, jsonify, render_template, make_response
 from flask import request, jsonify, render_template
 from datetime import datetime, timedelta
 from datetime import datetime
@@ -11,6 +12,7 @@ from dotenv import load_dotenv
 from auth import generate_token, token_required, verify_token, init_auth_routes
 import auth
 from werkzeug.utils import secure_filename 
+from werkzeug.security import check_password_hash
 from werkzeug.security import generate_password_hash
 from flask_swagger_ui import get_swaggerui_blueprint
 from flask_cors import CORS
@@ -345,67 +347,140 @@ def register():
 
     return render_template('register.html')
 
+# @app.route('/login', methods=['GET', 'POST'])
+# def login():
+#     if request.method == 'POST':
+#         try:
+#             data = request.get_json()
+#             username = data.get('username')
+#             password = data.get('password')
+            
+#             print(f"Login attempt - Username: {username}")  # Debug print
+            
+#             # SQL Injection vulnerability (intentionally vulnerable)
+#             query = f"SELECT * FROM users WHERE username='{username}' AND password='{password}'"
+#             print(f"Debug - Login query: {query}")  # Debug print
+            
+#             user = execute_query(query)
+#             print(f"Debug - Query result: {user}")  # Debug print
+            
+#             if user and len(user) > 0:
+#                 user = user[0]  # Get first row
+#                 print(f"Debug - Found user: {user}")  # Debug print
+                
+#                 # Generate JWT token instead of using session
+#                 token = generate_token(user[0], user[1], user[5])
+#                 print(f"Debug - Generated token: {token}")  # Debug print
+                
+#                 response = make_response(jsonify({
+#                     'status': 'success',
+#                     'message': 'Login successful',
+#                     'token': token,
+#                     'accountNumber': user[3],
+#                     'isAdmin':       user[5],
+#                     'debug_info': {  # Vulnerability: Information disclosure
+#                         'user_id': user[0],
+#                         'username': user[1],
+#                         'account_number': user[3],
+#                         'is_admin': user[5],
+#                         'login_time': str(datetime.now())
+#                     }
+#                 }))
+#                 # Vulnerability: Cookie without secure flag
+#                 response.set_cookie('token', token, httponly=True)
+#                 return response
+            
+#             # Vulnerability: Username enumeration
+#             return jsonify({
+#                 'status': 'error',
+#                 'message': 'Invalid credentials',
+#                 'debug_info': {  # Vulnerability: Information disclosure
+#                     'attempted_username': username,
+#                     'time': str(datetime.now())
+#                 }
+#             }), 401
+            
+#         except Exception as e:
+#             print(f"Login error: {str(e)}")
+#             return jsonify({
+#                 'status': 'error',
+#                 'message': 'Login failed',
+#                 'error': str(e)
+#             }), 500
+        
+#     return render_template('login.html')
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         try:
             data = request.get_json()
+
+            if not data:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Invalid request'
+                }), 400
+
             username = data.get('username')
             password = data.get('password')
-            
-            print(f"Login attempt - Username: {username}")  # Debug print
-            
-            # SQL Injection vulnerability (intentionally vulnerable)
-            query = f"SELECT * FROM users WHERE username='{username}' AND password='{password}'"
-            print(f"Debug - Login query: {query}")  # Debug print
-            
-            user = execute_query(query)
-            print(f"Debug - Query result: {user}")  # Debug print
-            
-            if user and len(user) > 0:
-                user = user[0]  # Get first row
-                print(f"Debug - Found user: {user}")  # Debug print
-                
-                # Generate JWT token instead of using session
-                token = generate_token(user[0], user[1], user[5])
-                print(f"Debug - Generated token: {token}")  # Debug print
-                
-                response = make_response(jsonify({
-                    'status': 'success',
-                    'message': 'Login successful',
-                    'token': token,
-                    'accountNumber': user[3],
-                    'isAdmin':       user[5],
-                    'debug_info': {  # Vulnerability: Information disclosure
-                        'user_id': user[0],
-                        'username': user[1],
-                        'account_number': user[3],
-                        'is_admin': user[5],
-                        'login_time': str(datetime.now())
-                    }
-                }))
-                # Vulnerability: Cookie without secure flag
-                response.set_cookie('token', token, httponly=True)
-                return response
-            
-            # Vulnerability: Username enumeration
-            return jsonify({
-                'status': 'error',
-                'message': 'Invalid credentials',
-                'debug_info': {  # Vulnerability: Information disclosure
-                    'attempted_username': username,
-                    'time': str(datetime.now())
-                }
-            }), 401
-            
+
+            if not username or not password:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Invalid credentials'
+                }), 401
+
+            # Parameterized query (prevents SQL injection)
+            query = """
+                SELECT id, username, password, account_number, balance, is_admin
+                FROM users
+                WHERE username = %s
+            """
+            result = execute_query(query, (username,), fetch=True)
+
+            if not result:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Invalid credentials'
+                }), 401
+
+            user = result[0]
+
+            # Verify hashed password
+            if not check_password_hash(user[2], password):
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Invalid credentials'
+                }), 401
+
+            # Generate JWT
+            token = generate_token(user[0], user[1], user[5])
+
+            response = make_response(jsonify({
+                'status': 'success',
+                'message': 'Login successful',
+                'token': token
+            }))
+
+            # Secure cookie flags
+            response.set_cookie(
+                'token',
+                token,
+                httponly=True,
+                secure=True,
+                samesite='Strict'
+            )
+
+            return response, 200
+
         except Exception as e:
             print(f"Login error: {str(e)}")
             return jsonify({
                 'status': 'error',
-                'message': 'Login failed',
-                'error': str(e)
+                'message': 'Login failed'
             }), 500
-        
+
     return render_template('login.html')
 
 @app.route('/debug/users')
