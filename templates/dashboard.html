@@ -58,21 +58,46 @@
     <!-- Main content area -->
     <div class="main-content">
         <!-- Greeting section with balance card -->
-        <div class="greeting-section">
+         <!-- Vulnerability: XSS possible in username -->
+          <!-- Vulnerability: Sensitive information exposure -->
+        <!-- <div class="greeting-section">
             <div class="greeting-text">
-                <!-- Vulnerability: XSS possible in username -->
+                
                 <h1>Welcome back, {{ username | safe }}</h1>
                 <p id="current-date"></p>
             </div>
             <div class="account-card">
                 <div class="account-label">Current Balance</div>
-                <!-- Vulnerability: Sensitive information exposure -->
+                
                 <div class="account-balance" id="balance">${{ balance }}</div>
                 <div class="account-number-display">
                     Account Number: <span id="account-number">{{ account_number }}</span>
                 </div>
             </div>
+        </div> -->
+
+        <!-- SECURITY FIX: Escape username to prevent XSS; mask sensitive account info such as balance and account number to prevent exposure -->
+        <div class="greeting-section">
+    <div class="greeting-text">
+        <!-- Escape username to prevent XSS -->
+        <h1>Welcome back, {{ username }}</h1>
+        <p id="current-date"></p>
+    </div>
+
+    <div class="account-card">
+        <div class="account-label">Current Balance</div>
+
+        <!-- Mask sensitive information -->
+        <div class="account-balance" id="balance">
+            $****{{ "%.2f"|format(balance)[-2:] }}
         </div>
+
+        <div class="account-number-display">
+            Account Number: <span id="account-number">****{{ account_number[-4:] }}</span>
+        </div>
+    </div>
+</div>
+
 
         <!-- Global message div for all notifications -->
         <div id="message"></div>
