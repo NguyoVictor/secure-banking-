@@ -363,54 +363,54 @@
             <!-- SECURITY FIX: Implement pagination for transactions to limit data exposure and improve performance -->
               <div id="transaction-list"></div>
 
-<div class="pagination-controls">
-    <button id="prev-page" disabled>Previous</button>
-    <span id="current-page">1</span> / <span id="total-pages">1</span>
-    <button id="next-page">Next</button>
-</div>
+                <div class="pagination-controls">
+                    <button id="prev-page" disabled>Previous</button>
+                    <span id="current-page">1</span> / <span id="total-pages">1</span>
+                    <button id="next-page">Next</button>
+                </div>
 
-<script>
-let currentPage = 1;
-const perPage = 10;
+                <script>
+                let currentPage = 1;
+                const perPage = 10;
 
-async function fetchTransactions(page = 1) {
-    try {
-        const response = await fetch(`/api/transactions?page=${page}&per_page=${perPage}`, {
-            credentials: 'include'
-        });
-        const data = await response.json();
+                async function fetchTransactions(page = 1) {
+                    try {
+                        const response = await fetch(`/api/transactions?page=${page}&per_page=${perPage}`, {
+                            credentials: 'include'
+                        });
+                        const data = await response.json();
 
-        const container = document.getElementById('transaction-list');
-        container.innerHTML = data.transactions.map(tx => `
-            <div class="transaction-item">
-                <div>Amount: $${tx.amount}</div>
-                <div>Status: ${tx.status}</div>
-                <div>Date: ${new Date(tx.date).toLocaleString()}</div>
-            </div>
-        `).join('');
+                        const container = document.getElementById('transaction-list');
+                        container.innerHTML = data.transactions.map(tx => `
+                            <div class="transaction-item">
+                                <div>Amount: $${tx.amount}</div>
+                                <div>Status: ${tx.status}</div>
+                                <div>Date: ${new Date(tx.date).toLocaleString()}</div>
+                            </div>
+                        `).join('');
 
-        document.getElementById('current-page').innerText = data.page;
-        document.getElementById('total-pages').innerText = data.total_pages;
+                        document.getElementById('current-page').innerText = data.page;
+                        document.getElementById('total-pages').innerText = data.total_pages;
 
-        document.getElementById('prev-page').disabled = data.page <= 1;
-        document.getElementById('next-page').disabled = data.page >= data.total_pages;
-    } catch (err) {
-        console.error(err);
-        document.getElementById('transaction-list').innerHTML = '<p>Error loading transactions.</p>';
-    }
-}
+                        document.getElementById('prev-page').disabled = data.page <= 1;
+                        document.getElementById('next-page').disabled = data.page >= data.total_pages;
+                    } catch (err) {
+                        console.error(err);
+                        document.getElementById('transaction-list').innerHTML = '<p>Error loading transactions.</p>';
+                    }
+                }
 
-document.getElementById('prev-page').addEventListener('click', () => {
-    if (currentPage > 1) { currentPage--; fetchTransactions(currentPage); }
-});
+                document.getElementById('prev-page').addEventListener('click', () => {
+                    if (currentPage > 1) { currentPage--; fetchTransactions(currentPage); }
+                });
 
-document.getElementById('next-page').addEventListener('click', () => {
-    currentPage++; fetchTransactions(currentPage);
-});
+                document.getElementById('next-page').addEventListener('click', () => {
+                    currentPage++; fetchTransactions(currentPage);
+                });
 
-// Initial load
-fetchTransactions(currentPage);
-</script>
+                // Initial load
+                fetchTransactions(currentPage);
+                </script>
 
         </div>
 
