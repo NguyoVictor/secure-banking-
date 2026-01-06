@@ -1393,36 +1393,86 @@ def request_loan(current_user):
         }), 500
 
 
-# Hidden admin endpoint (security through obscurity)
+# # Hidden admin endpoint (security through obscurity)
+# @app.route('/sup3r_s3cr3t_admin')
+# @token_required
+# def admin_panel(current_user):
+#     if not current_user['is_admin']:
+#         return "Access Denied", 403
+
+#     # Basic pagination to avoid rendering every user at once
+#     page = max(request.args.get('page', default=1, type=int), 1)
+#     per_page = 10
+
+#     total_users = execute_query("SELECT COUNT(*) FROM users")[0][0]
+#     total_pages = max((total_users + per_page - 1) // per_page, 1)
+#     page = min(page, total_pages)
+#     offset = (page - 1) * per_page
+
+#     users = execute_query(
+#         "SELECT * FROM users ORDER BY id LIMIT %s OFFSET %s",
+#         (per_page, offset)
+#     )
+
+#     loan_page = max(request.args.get('loan_page', default=1, type=int), 1)
+#     loan_per_page = 10
+#     total_pending_loans = execute_query("SELECT COUNT(*) FROM loans WHERE status='pending'")[0][0]
+#     loan_total_pages = max((total_pending_loans + loan_per_page - 1) // loan_per_page, 1)
+#     loan_page = min(loan_page, loan_total_pages)
+#     loan_offset = (loan_page - 1) * loan_per_page
+
+#     pending_loans = execute_query(
+#         "SELECT * FROM loans WHERE status='pending' ORDER BY id LIMIT %s OFFSET %s",
+#         (loan_per_page, loan_offset)
+#     )
+    
+#     return render_template(
+#         'admin.html',
+#         users=users,
+#         pending_loans=pending_loans,
+#         page=page,
+#         total_pages=total_pages,
+#         total_users=total_users,
+#         per_page=per_page,
+#         loan_page=loan_page,
+#         loan_total_pages=loan_total_pages,
+#         total_pending_loans=total_pending_loans,
+#         loan_per_page=loan_per_page
+#     )
+
 @app.route('/sup3r_s3cr3t_admin')
 @token_required
 def admin_panel(current_user):
-    if not current_user['is_admin']:
+    # Use .get() to avoid KeyError
+    if not current_user.get('is_admin', False):
         return "Access Denied", 403
 
-    # Basic pagination to avoid rendering every user at once
+    # Pagination parameters (sanitize and enforce limits)
     page = max(request.args.get('page', default=1, type=int), 1)
-    per_page = 10
+    per_page = min(request.args.get('per_page', default=10, type=int), 50)  # Max 50 per page
 
     total_users = execute_query("SELECT COUNT(*) FROM users")[0][0]
     total_pages = max((total_users + per_page - 1) // per_page, 1)
     page = min(page, total_pages)
     offset = (page - 1) * per_page
 
+    # Only select non-sensitive fields
     users = execute_query(
-        "SELECT * FROM users ORDER BY id LIMIT %s OFFSET %s",
+        "SELECT id, username, account_number, balance, is_admin FROM users ORDER BY id LIMIT %s OFFSET %s",
         (per_page, offset)
     )
 
+    # Pending loans pagination
     loan_page = max(request.args.get('loan_page', default=1, type=int), 1)
-    loan_per_page = 10
+    loan_per_page = min(request.args.get('loan_per_page', default=10, type=int), 50)
     total_pending_loans = execute_query("SELECT COUNT(*) FROM loans WHERE status='pending'")[0][0]
     loan_total_pages = max((total_pending_loans + loan_per_page - 1) // loan_per_page, 1)
     loan_page = min(loan_page, loan_total_pages)
     loan_offset = (loan_page - 1) * loan_per_page
 
+    # Only select needed loan fields
     pending_loans = execute_query(
-        "SELECT * FROM loans WHERE status='pending' ORDER BY id LIMIT %s OFFSET %s",
+        "SELECT id, user_id, amount, status, created_at FROM loans WHERE status='pending' ORDER BY id LIMIT %s OFFSET %s",
         (loan_per_page, loan_offset)
     )
     
@@ -1439,6 +1489,7 @@ def admin_panel(current_user):
         total_pending_loans=total_pending_loans,
         loan_per_page=loan_per_page
     )
+
 
 @app.route('/admin/approve_loan/<int:loan_id>', methods=['POST'])
 @token_required
