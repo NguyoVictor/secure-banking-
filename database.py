@@ -23,6 +23,7 @@ DB_CONFIG = {
     'password': os.environ['DB_PASSWORD'],
     'host': os.environ.get('DB_HOST', 'localhost'),
     'port': os.environ.get('DB_PORT', '5432')
+    'sslmode': os.environ.get('DB_SSLMODE', 'require')
 }
 
 # Optional safety check: ensure all required env vars are set
@@ -62,12 +63,17 @@ def release_db_connection(conn):
 
 def init_connection_pool(min_connections=1, max_connections=10, max_retries=5, retry_delay=2):
     """
-    Initialize the database connection pool with retry mechanism
-    Vulnerability: No connection encryption enforced
+    Initialize the database connection pool with retry mechanism.
+    
+    Patches:
+    1. SSL encryption enforced by default via DB_CONFIG['sslmode'].
+    2. Exceptions logged safely without exposing sensitive info.
+    3. Retry mechanism remains to handle transient failures.
+    4. Global variable usage kept, but could be improved with class-based pool in future.
     """
     global connection_pool
     retry_count = 0
-    
+
     while retry_count < max_retries:
         try:
             connection_pool = psycopg2.pool.SimpleConnectionPool(
@@ -77,15 +83,21 @@ def init_connection_pool(min_connections=1, max_connections=10, max_retries=5, r
             )
             print("Database connection pool created successfully")
             return
-        except Exception as e:
+        except psycopg2.OperationalError as e:
             retry_count += 1
-            print(f"Failed to connect to database (attempt {retry_count}/{max_retries}): {e}")
+            # Avoid printing full DB config in errors
+            print(f"Failed to connect to database (attempt {retry_count}/{max_retries}): Operational error")
             if retry_count < max_retries:
                 print(f"Retrying in {retry_delay} seconds...")
                 time.sleep(retry_delay)
             else:
                 print("Max retries reached. Could not establish database connection.")
-                raise e
+                raise
+        except Exception as e:
+            # Catch-all for unexpected exceptions
+            print("Unexpected error while creating database connection pool")
+            raise
+
 
 def get_connection():
     if connection_pool:
