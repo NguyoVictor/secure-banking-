@@ -20,20 +20,34 @@ ALGORITHMS = ['HS256']
 # # Vulnerable algorithm selection - allows 'none' algorithm
 # ALGORITHMS = ['HS256', 'none']
 
-def generate_token(user_id, username, is_admin=False):
+# def generate_token(user_id, username, is_admin=False):
+#     """
+#     Generate a JWT token with weak implementation
+#     Vulnerability: No token expiration (CWE-613)
+#     """
+#     payload = {
+#         'user_id': user_id,
+#         'username': username,
+#         'is_admin': is_admin,
+#         # Missing 'exp' claim - tokens never expire
+#         'iat': datetime.datetime.utcnow()
+#     }
+    
+#     # Vulnerability: Using a weak secret key
+#     token = jwt.encode(payload, JWT_SECRET, algorithm='HS256')
+#     return token
+def generate_token(user_id, username, is_admin=False, expires_minutes=60):
     """
-    Generate a JWT token with weak implementation
-    Vulnerability: No token expiration (CWE-613)
+    Generate a JWT token with improved implementation
     """
     payload = {
         'user_id': user_id,
         'username': username,
         'is_admin': is_admin,
-        # Missing 'exp' claim - tokens never expire
-        'iat': datetime.datetime.utcnow()
+        'iat': datetime.utcnow(),
+        'exp': datetime.utcnow() + timedelta(minutes=expires_minutes)  # Token expires after specified minutes
     }
     
-    # Vulnerability: Using a weak secret key
     token = jwt.encode(payload, JWT_SECRET, algorithm='HS256')
     return token
 
