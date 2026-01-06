@@ -741,33 +741,79 @@ async function handleCardUpdate(event, cardId) {
         card_limit: parseFloat(formData.get('card_limit'))
     };
 
-    try {
-        // Vulnerability: Sending all form data including sensitive fields
-        const response = await fetch(`/api/virtual-cards/${cardId}/update-limit`, {
-            method: 'POST',
-            headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('jwt_token'),
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(jsonData)
-        });
+    // try {
+    //     // Vulnerability: Sending all form data including sensitive fields
+    //     const response = await fetch(`/api/virtual-cards/${cardId}/update-limit`, {
+    //         method: 'POST',
+    //         headers: {
+    //             'Authorization': 'Bearer ' + localStorage.getItem('jwt_token'),
+    //             'Content-Type': 'application/json'
+    //         },
+    //         body: JSON.stringify(jsonData)
+    //     });
 
-        const data = await response.json();
-        if (data.status === 'success') {
-            await fetchVirtualCards();
-            hideCardDetailsModal();
-            document.getElementById('message').innerHTML = 'Card limit updated successfully';
-            document.getElementById('message').style.color = 'green';
-        } else {
-            document.getElementById('message').innerHTML = data.message;
-            document.getElementById('message').style.color = 'red';
-        }
-    } catch (error) {
-        document.getElementById('message').innerHTML = 'Error updating card limit';
-        document.getElementById('message').style.color = 'red';
-    }
+    //     const data = await response.json();
+    //     if (data.status === 'success') {
+    //         await fetchVirtualCards();
+    //         hideCardDetailsModal();
+    //         document.getElementById('message').innerHTML = 'Card limit updated successfully';
+    //         document.getElementById('message').style.color = 'green';
+    //     } else {
+    //         document.getElementById('message').innerHTML = data.message;
+    //         document.getElementById('message').style.color = 'red';
+    //     }
+    // } catch (error) {
+    //     document.getElementById('message').innerHTML = 'Error updating card limit';
+    //     document.getElementById('message').style.color = 'red';
+    // }
     
-    return false; // Prevent form submission
+    // return false; // Prevent form submission
+
+    // SECURITY FIX: Prevent mass assignment by sending only explicitly allowed fields,
+    // and mitigate DOM-based XSS by avoiding innerHTML when displaying messages.
+
+     try {
+    // Only send explicitly allowed field to prevent mass assignment
+    const payload = {
+        card_limit: Number(jsonData.card_limit)
+    };
+
+    const response = await fetch(`/api/virtual-cards/${cardId}/update-limit`, {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + localStorage.getItem('jwt_token'),
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+        throw new Error('Server error');
+    }
+
+    const data = await response.json();
+    const messageEl = document.getElementById('message');
+
+    if (data.status === 'success') {
+        await fetchVirtualCards();
+        hideCardDetailsModal();
+
+        // Safe text rendering (no HTML injection)
+        messageEl.textContent = 'Card limit updated successfully';
+        messageEl.style.color = 'green';
+    } else {
+        messageEl.textContent = data.message || 'Failed to update card limit';
+        messageEl.style.color = 'red';
+    }
+} catch (error) {
+    const messageEl = document.getElementById('message');
+    messageEl.textContent = 'Error updating card limit';
+    messageEl.style.color = 'red';
+}
+
+return false; // Prevent form submission
+
+
 }
 
 // Bill Payments Functions
