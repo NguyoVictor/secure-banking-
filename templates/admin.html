@@ -291,24 +291,58 @@ add explicit confirmation for destructive actions to prevent accidental or unaut
 
     <script>
         // Vulnerability: Token stored in localStorage
-        document.addEventListener('DOMContentLoaded', function() {
-            const token = localStorage.getItem('jwt_token');
-            if (!token) {
-                window.location.href = '/login';
-                return;
-            }
+        // document.addEventListener('DOMContentLoaded', function() {
+        //     const token = localStorage.getItem('jwt_token');
+        //     if (!token) {
+        //         window.location.href = '/login';
+        //         return;
+        //     }
 
-            // Add event listeners
-            document.querySelectorAll('.delete-account-form').forEach(form => {
-                form.addEventListener('submit', handleDeleteAccount);
-            });
+        //     // Add event listeners
+        //     document.querySelectorAll('.delete-account-form').forEach(form => {
+        //         form.addEventListener('submit', handleDeleteAccount);
+        //     });
 
-            document.querySelectorAll('.approve-loan-form').forEach(form => {
-                form.addEventListener('submit', handleLoanApproval);
-            });
+        //     document.querySelectorAll('.approve-loan-form').forEach(form => {
+        //         form.addEventListener('submit', handleLoanApproval);
+        //     });
 
-            document.getElementById('createAdminForm').addEventListener('submit', handleCreateAdmin);
+        //     document.getElementById('createAdminForm').addEventListener('submit', handleCreateAdmin);
+        // });
+
+        // SECURITY FIX: Avoid reliance on JWTs stored in localStorage.
+        // Authentication state should be validated server-side using HttpOnly cookies.
+        document.addEventListener('DOMContentLoaded', async function () {
+    try {
+        // Validate session server-side instead of trusting localStorage
+        const response = await fetch('/api/auth/session', {
+            method: 'GET',
+            credentials: 'include' // send HttpOnly cookies
         });
+
+        if (!response.ok) {
+            window.location.href = '/login';
+            return;
+        }
+    } catch (error) {
+        window.location.href = '/login';
+        return;
+    }
+
+    // Add event listeners only after session is verified
+    document.querySelectorAll('.delete-account-form').forEach(form => {
+        form.addEventListener('submit', handleDeleteAccount);
+    });
+
+    document.querySelectorAll('.approve-loan-form').forEach(form => {
+        form.addEventListener('submit', handleLoanApproval);
+    });
+
+    document
+        .getElementById('createAdminForm')
+        .addEventListener('submit', handleCreateAdmin);
+});
+
 
         async function handleDeleteAccount(event) {
             event.preventDefault();
