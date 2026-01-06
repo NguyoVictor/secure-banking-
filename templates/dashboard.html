@@ -132,8 +132,9 @@
                 <h2 class="section-title">Profile</h2>
             </div>
 
-            <div class="profile-picture-wrapper">
-                <!-- Vulnerability: Path traversal possible in profile picture -->
+            <!-- Vulnerability: Path traversal possible in profile picture -->
+            <!-- <div class="profile-picture-wrapper">
+                
                 <img id="profile-picture"
                      class="profile-picture"
                      src="{{ url_for('static', filename='uploads/' + user.profile_picture) if user.profile_picture else url_for('static', filename='uploads/user.png') }}"
@@ -141,7 +142,20 @@
                 <div class="profile-picture-edit" onclick="document.getElementById('profile_picture').click()">
                         ✏️
                 </div>
-            </div>
+            </div> -->
+            <!-- SECURITY FIX: Prevent path traversal by validating profile picture filenames
+            and serving only allowed files from the uploads directory -->
+            <div class="profile-picture-wrapper">
+    <img id="profile-picture"
+         class="profile-picture"
+         src="{{ url_for('get_profile_picture', filename=user.profile_picture) if user.profile_picture else url_for('static', filename='uploads/user.png') }}"
+         alt="Profile Picture">
+
+    <div class="profile-picture-edit" onclick="document.getElementById('profile_picture').click()">
+        ✏️
+    </div>
+</div>
+
                         <!-- Vulnerability: No file type validation -->
                         <!-- Vulnerability: No file size limits -->
                      <form id="profileUploadForm" enctype="multipart/form-data">
