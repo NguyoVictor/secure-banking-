@@ -49,46 +49,67 @@
     </div>
 </div>
 
-
+    <!-- Vulnerability: Token stored in localStorage
+         Vulnerability: No XSS protection -->
     <script>
-        // Vulnerability: Token stored in localStorage
-        // Vulnerability: No XSS protection
         document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('loginForm').addEventListener('submit', async (event) => {
+            const loginForm = document.getElementById('loginForm');
+            const messageDiv = document.getElementById('message');
+
+            // Frontend rate limiting: 1 request per 5 seconds
+            let lastRequestTime = 0;
+            const RATE_LIMIT_MS = 5000;
+
+            loginForm.addEventListener('submit', async (event) => {
                 event.preventDefault();
-                
-                const formData = new FormData(event.target);
+
+                const now = Date.now();
+                if (now - lastRequestTime < RATE_LIMIT_MS) {
+                    messageDiv.textContent = 'Please wait before trying again.';
+                    messageDiv.style.color = 'orange';
+                    return;
+                }
+                lastRequestTime = now;
+
+                const formData = new FormData(loginForm);
                 const jsonData = {};
                 formData.forEach((value, key) => jsonData[key] = value);
-                
+
                 try {
                     const response = await fetch('/login', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
                         },
-                        body: JSON.stringify(jsonData)
+                        body: JSON.stringify(jsonData),
+                        credentials: 'include' // ensures cookies are sent
                     });
-                    
+
                     const data = await response.json();
-                    
-                    if (data.status === 'success' && data.token) {
-                        // Vulnerability: Token stored in localStorage (intentionally vulnerable)
-                        localStorage.setItem('jwt_token', data.token);
-                        window.location.href = '/dashboard';
+
+                    if (data.status === 'success') {
+                        // Token should now be set in secure HTTP-only cookie by backend
+                        messageDiv.textContent = 'Login successful! Redirecting...';
+                        messageDiv.style.color = 'green';
+                        messageDiv.className = 'success';
+
+                        setTimeout(() => {
+                            window.location.href = '/dashboard';
+                        }, 1000);
                     } else {
-                        // Vulnerability: innerHTML used instead of textContent
-                        document.getElementById('message').innerHTML = data.message || 'Login failed';
-                        document.getElementById('message').style.color = 'red';
-                        document.getElementById('message').className = 'error';
+                        // Generic error message prevents username enumeration
+                        messageDiv.textContent = 'Invalid username or password';
+                        messageDiv.style.color = 'red';
+                        messageDiv.className = 'error';
                     }
                 } catch (error) {
-                    document.getElementById('message').innerHTML = 'Login failed. Please try again.';
-                    document.getElementById('message').style.color = 'red';
-                    document.getElementById('message').className = 'error';
+                    messageDiv.textContent = 'Login failed. Please try again.';
+                    messageDiv.style.color = 'red';
+                    messageDiv.className = 'error';
                 }
             });
         });
-    </script>
+</script>
+
 </body>
 </html>
