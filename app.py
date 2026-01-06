@@ -1,5 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify, make_response
+from flask import request, jsonify, render_template
 from datetime import datetime, timedelta
+from datetime import datetime
 import random
 import string
 import html
@@ -9,6 +11,7 @@ from dotenv import load_dotenv
 from auth import generate_token, token_required, verify_token, init_auth_routes
 import auth
 from werkzeug.utils import secure_filename 
+from werkzeug.security import generate_password_hash
 from flask_swagger_ui import get_swaggerui_blueprint
 from flask_cors import CORS
 from database import init_connection_pool, init_db, execute_query, execute_transaction
@@ -186,6 +189,91 @@ def generate_card_number():
 def generate_cvv():
     """Generate a secure 3-digit CVV"""
     return ''.join(secrets.choice(string.digits) for _ in range(3))
+    
+# @app.route('/')
+# def index():
+#     return render_template('index.html')
+
+# @app.route('/register', methods=['GET', 'POST'])
+# def register():
+#     if request.method == 'POST':
+#         try:
+#             # Mass Assignment Vulnerability - Client can send additional parameters
+#             user_data = request.get_json()  # Changed to get_json()
+#             account_number = generate_account_number()
+            
+#             # Check if username exists
+#             existing_user = execute_query(
+#                 "SELECT username FROM users WHERE username = %s",
+#                 (user_data.get('username'),)
+#             )
+            
+#             if existing_user and existing_user[0]:
+#                 return jsonify({
+#                     'status': 'error',
+#                     'message': 'Username already exists',
+#                     'username': user_data.get('username'),
+#                     'tried_at': str(datetime.now())  # Information disclosure
+#                 }), 400
+            
+#             # Build dynamic query based on user input fields
+#             # Vulnerability: Mass Assignment possible here
+#             fields = ['username', 'password', 'account_number']
+#             values = [user_data.get('username'), user_data.get('password'), account_number]
+            
+#             # Include any additional parameters from user input
+#             for key, value in user_data.items():
+#                 if key not in ['username', 'password']:
+#                     fields.append(key)
+#                     values.append(value)
+            
+#             # Build the SQL query dynamically
+#             query = f"""
+#                 INSERT INTO users ({', '.join(fields)})
+#                 VALUES ({', '.join(['%s'] * len(fields))})
+#                 RETURNING id, username, account_number, balance, is_admin
+#             """
+            
+#             result = execute_query(query, values, fetch=True)
+            
+#             if not result or not result[0]:
+#                 raise Exception("Failed to create user")
+                
+#             user = result[0]
+            
+#             # Excessive Data Exposure in Response
+#             sensitive_data = {
+#                 'status': 'success',
+#                 'message': 'Registration successful! Proceed to login',
+#                 'debug_data': {  # Sensitive data exposed
+#                     'user_id': user[0],
+#                     'username': user[1],
+#                     'account_number': user[2],
+#                     'balance': float(user[3]) if user[3] else 1000.0,
+#                     'is_admin': user[4],
+#                     'registration_time': str(datetime.now()),
+#                     'server_info': request.headers.get('User-Agent'),
+#                     'raw_data': user_data,  # Exposing raw input data
+#                     'fields_registered': fields  # Show what fields were registered
+#                 }
+#             }
+            
+#             response = jsonify(sensitive_data)
+#             response.headers['X-Debug-Info'] = str(sensitive_data['debug_data'])
+#             response.headers['X-User-Info'] = f"id={user[0]};admin={user[4]};balance={user[3]}"
+            
+#             return response
+                
+#         except Exception as e:
+#             print(f"Registration error: {str(e)}")
+#             return jsonify({
+#                 'status': 'error',
+#                 'message': 'Registration failed',
+#                 'error': str(e)
+#             }), 500
+        
+#     return render_template('register.html')
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -194,80 +282,67 @@ def index():
 def register():
     if request.method == 'POST':
         try:
-            # Mass Assignment Vulnerability - Client can send additional parameters
-            user_data = request.get_json()  # Changed to get_json()
-            account_number = generate_account_number()
-            
-            # Check if username exists
-            existing_user = execute_query(
-                "SELECT username FROM users WHERE username = %s",
-                (user_data.get('username'),)
-            )
-            
-            if existing_user and existing_user[0]:
+            user_data = request.get_json()
+
+            if not user_data:
                 return jsonify({
                     'status': 'error',
-                    'message': 'Username already exists',
-                    'username': user_data.get('username'),
-                    'tried_at': str(datetime.now())  # Information disclosure
+                    'message': 'Invalid JSON payload'
                 }), 400
-            
-            # Build dynamic query based on user input fields
-            # Vulnerability: Mass Assignment possible here
-            fields = ['username', 'password', 'account_number']
-            values = [user_data.get('username'), user_data.get('password'), account_number]
-            
-            # Include any additional parameters from user input
-            for key, value in user_data.items():
-                if key not in ['username', 'password']:
-                    fields.append(key)
-                    values.append(value)
-            
-            # Build the SQL query dynamically
-            query = f"""
-                INSERT INTO users ({', '.join(fields)})
-                VALUES ({', '.join(['%s'] * len(fields))})
-                RETURNING id, username, account_number, balance, is_admin
+
+            username = user_data.get('username')
+            password = user_data.get('password')
+
+            if not username or not password:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Username and password are required'
+                }), 400
+
+            # Check if username already exists
+            existing_user = execute_query(
+                "SELECT 1 FROM users WHERE username = %s",
+                (username,),
+                fetch=True
+            )
+
+            if existing_user:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Username already exists'
+                }), 400
+
+            account_number = generate_account_number()
+            hashed_password = generate_password_hash(password)
+
+            # Explicit field list (prevents mass assignment)
+            query = """
+                INSERT INTO users (username, password, account_number)
+                VALUES (%s, %s, %s)
+                RETURNING id
             """
-            
-            result = execute_query(query, values, fetch=True)
-            
-            if not result or not result[0]:
-                raise Exception("Failed to create user")
-                
-            user = result[0]
-            
-            # Excessive Data Exposure in Response
-            sensitive_data = {
+
+            result = execute_query(
+                query,
+                (username, hashed_password, account_number),
+                fetch=True
+            )
+
+            if not result:
+                raise Exception("User creation failed")
+
+            return jsonify({
                 'status': 'success',
-                'message': 'Registration successful! Proceed to login',
-                'debug_data': {  # Sensitive data exposed
-                    'user_id': user[0],
-                    'username': user[1],
-                    'account_number': user[2],
-                    'balance': float(user[3]) if user[3] else 1000.0,
-                    'is_admin': user[4],
-                    'registration_time': str(datetime.now()),
-                    'server_info': request.headers.get('User-Agent'),
-                    'raw_data': user_data,  # Exposing raw input data
-                    'fields_registered': fields  # Show what fields were registered
-                }
-            }
-            
-            response = jsonify(sensitive_data)
-            response.headers['X-Debug-Info'] = str(sensitive_data['debug_data'])
-            response.headers['X-User-Info'] = f"id={user[0]};admin={user[4]};balance={user[3]}"
-            
-            return response
-                
+                'message': 'Registration successful! Please login.'
+            }), 201
+
         except Exception as e:
             print(f"Registration error: {str(e)}")
             return jsonify({
                 'status': 'error',
-                'message': 'Registration failed',
-                'error': str(e)
+                'message': 'Registration failed'
             }), 500
-        
+
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
