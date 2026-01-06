@@ -1,6 +1,6 @@
 from flask import jsonify, request
 import jwt
-import datetime
+import datetime import datetime, timedelta
 import sqlite3  
 import os
 from functools import wraps
@@ -20,17 +20,31 @@ load_dotenv()
 JWT_SECRET = os.getenv("JWT_SECRET")
 ALGORITHMS = ['HS256']
 
+# def generate_token(user_id, username, is_admin=False):
+#     """
+#     Generate a JWT token with weak implementation
+#     Vulnerability: No token expiration (CWE-613)
+#     """
+#     payload = {
+#         'user_id': user_id,
+#         'username': username,
+#         'is_admin': is_admin,
+#         # Missing 'exp' claim - tokens never expire
+#         'iat': datetime.datetime.utcnow()
+#     }
 def generate_token(user_id, username, is_admin=False):
     """
-    Generate a JWT token with weak implementation
-    Vulnerability: No token expiration (CWE-613)
+    Generate a secure JWT token
+    Fixes:
+    - Adds token expiration
+    - Uses strong secret from environment
     """
     payload = {
-        'user_id': user_id,
-        'username': username,
-        'is_admin': is_admin,
-        # Missing 'exp' claim - tokens never expire
-        'iat': datetime.datetime.utcnow()
+        "user_id": user_id,
+        "username": username,
+        "is_admin": is_admin,
+        "iat": datetime.utcnow(),
+        "exp": datetime.utcnow() + timedelta(minutes=60)  # Token expires in 1 hour
     }
     
     # Vulnerability: Using a weak secret key
