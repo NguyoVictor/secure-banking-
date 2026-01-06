@@ -1010,24 +1010,81 @@ async function loadPaymentHistory() {
             }
 
             // Vulnerability: XSS possible in payment details
-            container.innerHTML = data.payments.map(payment => `
-                <div class="payment-item">
-                    <div class="payment-header">
-                        <div class="payment-amount">$${payment.amount}</div>
-                        <div class="payment-status">${payment.status}</div>
-                    </div>
-                    <div class="payment-details">
-                        <div>Biller: ${payment.biller_name}</div>
-                        <div>Category: ${payment.category_name}</div>
-                        <div>Payment Method: ${payment.payment_method}
-                            ${payment.card_number ? ` (Card ending in ${payment.card_number.slice(-4)})` : ''}
-                        </div>
-                        <div>Reference: ${payment.reference}</div>
-                        <div>Date: ${new Date(payment.created_at).toLocaleString()}</div>
-                        ${payment.description ? `<div>Description: ${payment.description}</div>` : ''}
-                    </div>
-                </div>
-            `).join('');
+            // container.innerHTML = data.payments.map(payment => `
+            //     <div class="payment-item">
+            //         <div class="payment-header">
+            //             <div class="payment-amount">$${payment.amount}</div>
+            //             <div class="payment-status">${payment.status}</div>
+            //         </div>
+            //         <div class="payment-details">
+            //             <div>Biller: ${payment.biller_name}</div>
+            //             <div>Category: ${payment.category_name}</div>
+            //             <div>Payment Method: ${payment.payment_method}
+            //                 ${payment.card_number ? ` (Card ending in ${payment.card_number.slice(-4)})` : ''}
+            //             </div>
+            //             <div>Reference: ${payment.reference}</div>
+            //             <div>Date: ${new Date(payment.created_at).toLocaleString()}</div>
+            //             ${payment.description ? `<div>Description: ${payment.description}</div>` : ''}
+            //         </div>
+            //     </div>
+            // `).join('');
+            // SECURITY FIX: Prevent DOM-based XSS by eliminating innerHTML usage and
+            // safely rendering all payment details using textContent and controlled DOM creation.
+            container.innerHTML = '';
+
+                    data.payments.forEach(payment => {
+                        const item = document.createElement('div');
+                        item.className = 'payment-item';
+
+                        const header = document.createElement('div');
+                        header.className = 'payment-header';
+
+                        const amount = document.createElement('div');
+                        amount.className = 'payment-amount';
+                        amount.textContent = `$${Number(payment.amount).toFixed(2)}`;
+
+                        const status = document.createElement('div');
+                        status.className = 'payment-status';
+                        status.textContent = payment.status;
+
+                        header.append(amount, status);
+
+                        const details = document.createElement('div');
+                        details.className = 'payment-details';
+
+                        const biller = document.createElement('div');
+                        biller.textContent = `Biller: ${payment.biller_name}`;
+
+                        const category = document.createElement('div');
+                        category.textContent = `Category: ${payment.category_name}`;
+
+                        const method = document.createElement('div');
+                        let methodText = `Payment Method: ${payment.payment_method}`;
+
+                        if (payment.card_number) {
+                            methodText += ` (Card ending in ${String(payment.card_number).slice(-4)})`;
+                        }
+                        method.textContent = methodText;
+
+                        const reference = document.createElement('div');
+                        reference.textContent = `Reference: ${payment.reference}`;
+
+                        const date = document.createElement('div');
+                        date.textContent = `Date: ${new Date(payment.created_at).toLocaleString()}`;
+
+                        details.append(biller, category, method, reference, date);
+
+                        if (payment.description) {
+                            const description = document.createElement('div');
+                            description.textContent = `Description: ${payment.description}`;
+                            details.appendChild(description);
+                        }
+
+                        item.append(header, details);
+                        container.appendChild(item);
+                
+                    });
+
         } else {
             document.getElementById('bill-payments-list').innerHTML = '<p style="text-align: center; padding: 2rem;">Error loading payment history</p>';
         }
