@@ -35,6 +35,17 @@ def allowed_file(filename):
     """Check if the file has an allowed extension."""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+ALLOWED_IMAGE_CONTENT_TYPES = {'image/png', 'image/jpeg', 'image/jpg', 'image/gif'}
+MAX_REMOTE_IMAGE_SIZE = 2 * 1024 * 1024  # 2 MB
+ALLOWED_SCHEMES = {'http', 'https'}
+
+def is_private_address(hostname):
+    try:
+        ip = ipaddress.ip_address(hostname)
+        return ip.is_private or ip.is_loopback or ip.is_link_local
+    except ValueError:
+        return False
+
 # Load environment variables
 load_dotenv()
 
@@ -979,8 +990,62 @@ def upload_profile_picture(current_user):
             'status': 'error',
             'message': 'Failed to upload profile picture'
         }), 500
-        
-# Upload profile picture by URL (Intentionally Vulnerable to SSRF)
+
+# # Upload profile picture by URL (Intentionally Vulnerable to SSRF)
+# @app.route('/upload_profile_picture_url', methods=['POST'])
+# @token_required
+# def upload_profile_picture_url(current_user):
+#     try:
+#         data = request.get_json() or {}
+#         image_url = data.get('image_url')
+
+#         if not image_url:
+#             return jsonify({'status': 'error', 'message': 'image_url is required'}), 400
+
+#         # Vulnerabilities:
+#         # - No URL scheme/host allowlist (SSRF)
+#         # - SSL verification disabled
+#         # - Follows redirects
+#         # - No content-type or size validation
+#         resp = requests.get(image_url, timeout=10, allow_redirects=True, verify=False)
+#         if resp.status_code >= 400:
+#             return jsonify({'status': 'error', 'message': f'Failed to fetch URL: HTTP {resp.status_code}'}), 400
+
+#         # Derive filename from URL path (user-controlled)
+#         parsed = urlparse(image_url)
+#         basename = os.path.basename(parsed.path) or 'downloaded'
+#         filename = secure_filename(basename)
+#         filename = f"{random.randint(1, 1000000)}_{filename}"
+#         file_path = os.path.join(UPLOAD_FOLDER, filename)
+
+#         # Save content directly without validation
+#         with open(file_path, 'wb') as f:
+#             f.write(resp.content)
+
+#         # Store just the filename in DB (same pattern as file upload)
+#         execute_query(
+#             "UPDATE users SET profile_picture = %s WHERE id = %s",
+#             (filename, current_user['user_id']),
+#             fetch=False
+#         )
+
+#         return jsonify({
+#             'status': 'success',
+#             'message': 'Profile picture imported from URL',
+#             'file_path': os.path.join('static/uploads', filename),
+#             'debug_info': {  # Information disclosure for learning
+#                 'fetched_url': image_url,
+#                 'http_status': resp.status_code,
+#                 'content_length': len(resp.content)
+#             }
+#         })
+#     except Exception as e:
+#         print(f"URL image import error: {str(e)}")
+#         return jsonify({
+#             'status': 'error',
+#             'message': str(e)
+#         }), 500
+
 @app.route('/upload_profile_picture_url', methods=['POST'])
 @token_required
 def upload_profile_picture_url(current_user):
@@ -991,27 +1056,54 @@ def upload_profile_picture_url(current_user):
         if not image_url:
             return jsonify({'status': 'error', 'message': 'image_url is required'}), 400
 
-        # Vulnerabilities:
-        # - No URL scheme/host allowlist (SSRF)
-        # - SSL verification disabled
-        # - Follows redirects
-        # - No content-type or size validation
-        resp = requests.get(image_url, timeout=10, allow_redirects=True, verify=False)
-        if resp.status_code >= 400:
-            return jsonify({'status': 'error', 'message': f'Failed to fetch URL: HTTP {resp.status_code}'}), 400
 
-        # Derive filename from URL path (user-controlled)
         parsed = urlparse(image_url)
-        basename = os.path.basename(parsed.path) or 'downloaded'
-        filename = secure_filename(basename)
-        filename = f"{random.randint(1, 1000000)}_{filename}"
+
+        # Validate scheme
+        if parsed.scheme not in ALLOWED_SCHEMES:
+            return jsonify({'status': 'error', 'message': 'Invalid URL scheme'}), 400
+
+        # Block private / internal addresses (SSRF protection)
+        if not parsed.hostname or is_private_address(parsed.hostname):
+            return jsonify({'status': 'error', 'message': 'Forbidden URL'}), 403
+
+        # Safe request (no redirects, SSL verification ON)
+        resp = requests.get(
+            image_url,
+            timeout=5,
+            allow_redirects=False,
+            verify=True,
+            stream=True
+        )
+
+        if resp.status_code != 200:
+            return jsonify({'status': 'error', 'message': 'Failed to fetch image'}), 400
+
+        content_type = resp.headers.get('Content-Type', '').split(';')[0]
+        if content_type not in ALLOWED_IMAGE_CONTENT_TYPES:
+            return jsonify({'status': 'error', 'message': 'Invalid image type'}), 400
+
+        content_length = resp.headers.get('Content-Length')
+        if content_length and int(content_length) > MAX_REMOTE_IMAGE_SIZE:
+            return jsonify({'status': 'error', 'message': 'Image too large'}), 400
+
+        # Generate safe filename
+        extension = content_type.split('/')[-1]
+        filename = f"{secrets.token_hex(8)}.{extension}"
         file_path = os.path.join(UPLOAD_FOLDER, filename)
 
-        # Save content directly without validation
+        # Save with size enforcement
+        total_read = 0
         with open(file_path, 'wb') as f:
-            f.write(resp.content)
+            for chunk in resp.iter_content(chunk_size=8192):
+                total_read += len(chunk)
+                if total_read > MAX_REMOTE_IMAGE_SIZE:
+                    f.close()
+                    os.remove(file_path)
+                    return jsonify({'status': 'error', 'message': 'Image too large'}), 400
+                f.write(chunk)
 
-        # Store just the filename in DB (same pattern as file upload)
+        # Update database
         execute_query(
             "UPDATE users SET profile_picture = %s WHERE id = %s",
             (filename, current_user['user_id']),
@@ -1020,19 +1112,14 @@ def upload_profile_picture_url(current_user):
 
         return jsonify({
             'status': 'success',
-            'message': 'Profile picture imported from URL',
-            'file_path': os.path.join('static/uploads', filename),
-            'debug_info': {  # Information disclosure for learning
-                'fetched_url': image_url,
-                'http_status': resp.status_code,
-                'content_length': len(resp.content)
-            }
-        })
+            'message': 'Profile picture imported successfully'
+        }), 200
+
     except Exception as e:
-        print(f"URL image import error: {str(e)}")
+        print(f"URL image upload error: {e}")
         return jsonify({
             'status': 'error',
-            'message': str(e)
+            'message': 'Failed to import image'
         }), 500
 
 # INTERNAL-ONLY ENDPOINTS FOR SSRF DEMO (INTENTIONALLY SENSITIVE)
