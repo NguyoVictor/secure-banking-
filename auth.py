@@ -152,26 +152,21 @@ def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         token = None
-
-        # Only accept token from Authorization header
-        auth_header = request.headers.get('Authorization')
-        if auth_header and auth_header.startswith('Bearer '):
-            token = auth_header.split(' ')[1]
+        if 'Authorization' in request.headers:
+            auth_header = request.headers['Authorization']
+            if 'Bearer' in auth_header:
+                token = auth_header.split(' ')[1]
 
         if not token:
             return jsonify({'error': 'Token is missing'}), 401
 
-        try:
-            current_user = verify_token(token)
-            if current_user is None:
-                return jsonify({'error': 'Invalid or expired token'}), 401
-
-            return f(current_user, *args, **kwargs)
-
-        except Exception:
-            # Generic error message, no sensitive details
+        current_user = verify_token(token)
+        if not current_user:
             return jsonify({'error': 'Invalid token'}), 401
 
+        g.current_user = current_user  # store in g for this request
+        return f(*args, **kwargs)
+    
     return decorated
 
 # New API endpoints with JWT authentication
@@ -310,7 +305,7 @@ def init_auth_routes(app):
     @app.route('/api/check_balance', methods=['GET'])
     @token_required
     def api_check_balance(current_user):
-        account_number = request.args.get('account_number')
+        account_number = request.args.get('account_number')  # <-- keep request.args
 
         if not account_number:
             return jsonify({'error': 'Account number required'}), 400
@@ -331,6 +326,7 @@ def init_auth_routes(app):
                 'balance': user['balance']
             })
         return jsonify({'error': 'Account not found'}), 404
+
 
     @app.route('/api/transfer', methods=['POST'])
     @token_required
