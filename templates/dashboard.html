@@ -146,24 +146,65 @@
             <!-- SECURITY FIX: Prevent path traversal by validating profile picture filenames
             and serving only allowed files from the uploads directory -->
             <div class="profile-picture-wrapper">
-    <img id="profile-picture"
-         class="profile-picture"
-         src="{{ url_for('get_profile_picture', filename=user.profile_picture) if user.profile_picture else url_for('static', filename='uploads/user.png') }}"
-         alt="Profile Picture">
+                <img id="profile-picture"
+                    class="profile-picture"
+                    src="{{ url_for('get_profile_picture', filename=user.profile_picture) if user.profile_picture else url_for('static', filename='uploads/user.png') }}"
+                    alt="Profile Picture">
 
-    <div class="profile-picture-edit" onclick="document.getElementById('profile_picture').click()">
-        ✏️
-    </div>
-</div>
+                <div class="profile-picture-edit" onclick="document.getElementById('profile_picture').click()">
+                    ✏️
+                </div>
+            </div>
 
                         <!-- Vulnerability: No file type validation -->
                         <!-- Vulnerability: No file size limits -->
-                     <form id="profileUploadForm" enctype="multipart/form-data">
+                     <!-- <form id="profileUploadForm" enctype="multipart/form-data">
                         <input type="file" id="profile_picture" name="profile_picture" accept="image/*" style="display: none;" onchange="document.getElementById('profileUploadForm').requestSubmit();">
                         <button type="button" onclick="document.getElementById('profile_picture').click()">Change Profile Picture</button>
                         <button type="button" id="profileUrlButton">Import from URL</button>
                     </form>
-                    <div id="upload-message" ></div>
+                    <div id="upload-message" ></div> -->
+
+                    <!-- SECURITY FIX: Enforce allowed file types and size limits for profile uploads to prevent malicious file uploads -->
+                                    <form id="profileUploadForm" enctype="multipart/form-data" method="POST">
+                    <!-- Accept only images and restrict max file size in JS before submit -->
+                    <input type="file"
+                        id="profile_picture"
+                        name="profile_picture"
+                        accept=".png,.jpg,.jpeg,.gif"
+                        style="display: none;"
+                        onchange="handleProfileUpload(this.files[0])">
+                    
+                    <button type="button" onclick="document.getElementById('profile_picture').click()">
+                        Change Profile Picture
+                    </button>
+                    <button type="button" id="profileUrlButton">Import from URL</button>
+                </form>
+
+                <div id="upload-message"></div>
+
+                <script>
+                function handleProfileUpload(file) {
+                    const maxSizeMB = 5; // 5MB max
+                    const allowedTypes = ['image/png', 'image/jpeg', 'image/gif'];
+
+                    if (!allowedTypes.includes(file.type)) {
+                        document.getElementById('upload-message').innerText = 'Invalid file type. Only PNG, JPEG, GIF are allowed.';
+                        document.getElementById('upload-message').style.color = 'red';
+                        return;
+                    }
+
+                    if (file.size > maxSizeMB * 1024 * 1024) {
+                        document.getElementById('upload-message').innerText = `File too large. Maximum size is ${maxSizeMB} MB.`;
+                        document.getElementById('upload-message').style.color = 'red';
+                        return;
+                    }
+
+                    // Safe: submit form after checks
+                    document.getElementById('profileUploadForm').requestSubmit();
+                }
+                </script>
+
         </div>
         
         <!-- Money transfer section -->
