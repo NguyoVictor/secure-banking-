@@ -3,7 +3,6 @@ import psycopg2
 from psycopg2 import sql
 from werkzeug.security import generate_password_hash
 from decimal import Decimal
-from database import get_connection, return_connection
 import os
 import logging
 from psycopg2 import pool
@@ -28,8 +27,8 @@ DB_CONFIG = {
     'user': os.environ['DB_USER'],
     'password': os.environ['DB_PASSWORD'],
     'host': os.environ.get('DB_HOST', 'localhost'),
-    'port': os.environ.get('DB_PORT', '5432')
-    'sslmode': os.environ.get('DB_SSLMODE', 'require')
+    'port': os.environ.get('DB_PORT', '5432'),
+    'sslmode': os.environ.get('DB_SSLMODE', 'disable')
 }
 
 # Optional safety check: ensure all required env vars are set
