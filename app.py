@@ -46,6 +46,16 @@ def is_private_address(hostname):
     except ValueError:
         return False
 
+def _is_loopback_request():
+    """Check if request comes from loopback / internal IP."""
+    try:
+        if not request.remote_addr:
+            return False
+
+        ip = ipaddress.ip_address(request.remote_addr)
+        return ip.is_loopback
+    except ValueError:
+        return False
 # Load environment variables
 load_dotenv()
 
@@ -1123,39 +1133,53 @@ def upload_profile_picture_url(current_user):
         }), 500
 
 # INTERNAL-ONLY ENDPOINTS FOR SSRF DEMO (INTENTIONALLY SENSITIVE)
-def _is_loopback_request():
-    try:
-        ip = request.remote_addr or ''
-        return ip == '127.0.0.1' or ip.startswith('127.') or ip == '::1'
-    except Exception:
-        return False
+# def _is_loopback_request():
+#     try:
+#         ip = request.remote_addr or ''
+#         return ip == '127.0.0.1' or ip.startswith('127.') or ip == '::1'
+#     except Exception:
+#         return False
+
+# @app.route('/internal/secret', methods=['GET'])
+# def internal_secret():
+#     # Soft internal check: allow only loopback requests
+#     if not _is_loopback_request():
+#         return jsonify({'error': 'Internal resource. Loopback only.'}), 403
+
+#     demo_env = {k: os.getenv(k) for k in [
+#         'DB_NAME','DB_USER','DB_PASSWORD','DB_HOST','DB_PORT','DEEPSEEK_API_KEY'
+#     ]}
+#     # Preview sensitive values (intentionally exposing)
+#     if demo_env.get('DEEPSEEK_API_KEY'):
+#         demo_env['DEEPSEEK_API_KEY'] = demo_env['DEEPSEEK_API_KEY'][:8] + '...'
+
+#     return jsonify({
+#         'status': 'internal',
+#         'note': 'Intentionally sensitive data for SSRF demonstration',
+#         'secrets': {
+#             'app_secret_key': app.secret_key,
+#             'jwt_secret': getattr(auth, 'JWT_SECRET', None),
+#             'env_preview': demo_env
+#         },
+#         'system': {
+#             'platform': platform.platform(),
+#             'python_version': platform.python_version()
+#         }
+#     })
 
 @app.route('/internal/secret', methods=['GET'])
-def internal_secret():
-    # Soft internal check: allow only loopback requests
-    if not _is_loopback_request():
-        return jsonify({'error': 'Internal resource. Loopback only.'}), 403
+@token_required
+def internal_secret(current_user):
+    # Enforce strong authorization (NOT IP-based)
+    if not current_user.get('is_admin', False):
+        return jsonify({'error': 'Forbidden'}), 403
 
-    demo_env = {k: os.getenv(k) for k in [
-        'DB_NAME','DB_USER','DB_PASSWORD','DB_HOST','DB_PORT','DEEPSEEK_API_KEY'
-    ]}
-    # Preview sensitive values (intentionally exposing)
-    if demo_env.get('DEEPSEEK_API_KEY'):
-        demo_env['DEEPSEEK_API_KEY'] = demo_env['DEEPSEEK_API_KEY'][:8] + '...'
-
+    # Do NOT expose secrets or environment variables
     return jsonify({
-        'status': 'internal',
-        'note': 'Intentionally sensitive data for SSRF demonstration',
-        'secrets': {
-            'app_secret_key': app.secret_key,
-            'jwt_secret': getattr(auth, 'JWT_SECRET', None),
-            'env_preview': demo_env
-        },
-        'system': {
-            'platform': platform.platform(),
-            'python_version': platform.python_version()
-        }
+        'status': 'ok',
+        'message': 'Internal admin endpoint reachable'
     })
+
 
 @app.route('/internal/config.json', methods=['GET'])
 def internal_config():
