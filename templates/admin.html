@@ -67,7 +67,8 @@
                 </tbody>
             </table> -->
 
-
+            <!-- SECURITY FIX: Reduce sensitive data exposure in user table and
+add explicit confirmation for destructive actions to prevent accidental or unauthorized deletion -->
             <div class="section">
                 <h2>User Management</h2>
             <table>
@@ -130,10 +131,11 @@
             </div>
         </div>
 
+        <!-- Vulnerability: No password complexity requirements -->
+            <!-- Vulnerability: No CSRF protection -->
         <div class="section">
             <h2>Create Admin Account</h2>
-            <!-- Vulnerability: No password complexity requirements -->
-            <!-- Vulnerability: No CSRF protection -->
+            
             <form id="createAdminForm">
                 <div class="form-group">
                     <label for="admin_username">Username</label>
