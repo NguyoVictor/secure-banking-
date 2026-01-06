@@ -1094,10 +1094,36 @@ async function loadPaymentHistory() {
 }
 
 // Vulnerability: No server-side token invalidation
-function logout() {
-    localStorage.removeItem('jwt_token');
-    window.location.href = '/login';
+// function logout() {
+//     localStorage.removeItem('jwt_token');
+//     window.location.href = '/login';
+// }
+
+// SECURITY FIX: Ensure logout invalidates the server-side token to prevent
+// unauthorized API access even if the JWT is still valid elsewhere.
+    async function logout() {
+    try {
+        // Call server to invalidate the JWT
+        const token = localStorage.getItem('jwt_token');
+        if (token) {
+            await fetch('/api/auth/logout', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                }
+            });
+        }
+
+        // Clear local token
+        localStorage.removeItem('jwt_token');
+        window.location.href = '/login';
+    } catch (error) {
+        console.error('Logout failed', error);
+        alert('Logout failed, please try again.');
+    }
 }
+
 
 
 // ===== CUSTOMER SUPPORT CHAT FUNCTIONALITY =====
