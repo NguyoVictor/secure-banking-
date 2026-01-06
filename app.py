@@ -28,6 +28,13 @@ import requests
 from urllib.parse import urlparse
 import platform
 
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+MAX_FILE_SIZE = 2 * 1024 * 1024  # 2 MB
+
+def allowed_file(filename):
+    """Check if the file has an allowed extension."""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 # Load environment variables
 load_dotenv()
 
@@ -861,7 +868,7 @@ def get_transaction_history(current_user, account_number):
             'timestamp': str(t[4]),
             'type': t[5],
             'description': t[6]
-            
+
         } for t in transactions]
 
         return jsonify({
@@ -876,54 +883,103 @@ def get_transaction_history(current_user, account_number):
             'message': 'Failed to fetch transactions'
         }), 500
 
+# @app.route('/upload_profile_picture', methods=['POST'])
+# @token_required
+# def upload_profile_picture(current_user):
+#     if 'profile_picture' not in request.files:
+#         return jsonify({'error': 'No file provided'}), 400
+        
+#     file = request.files['profile_picture']
+    
+#     if file.filename == '':
+#         return jsonify({'error': 'No file selected'}), 400
+        
+#     try:
+#         # Vulnerability: No file type validation
+#         # Vulnerability: Using user-controlled filename
+#         # Vulnerability: No file size check
+#         # Vulnerability: No content-type validation
+#         filename = secure_filename(file.filename)
+        
+#         # Add random prefix to prevent filename collisions
+#         filename = f"{random.randint(1, 1000000)}_{filename}"
+        
+#         # Vulnerability: Path traversal possible if filename contains ../
+#         file_path = os.path.join(UPLOAD_FOLDER, filename)
+        
+#         file.save(file_path)
+        
+#         # Update database with just the filename
+#         execute_query(
+#             "UPDATE users SET profile_picture = %s WHERE id = %s",
+#             (filename, current_user['user_id']),
+#             fetch=False
+#         )
+        
+#         return jsonify({
+#             'status': 'success',
+#             'message': 'Profile picture uploaded successfully',
+#             'file_path': os.path.join('static/uploads', filename)  # Vulnerability: Path disclosure
+#         })
+        
+#     except Exception as e:
+#         # Vulnerability: Detailed error exposure
+#         print(f"Profile picture upload error: {str(e)}")
+#         return jsonify({
+#             'status': 'error',
+#             'message': str(e),
+#             'file_path': file_path  # Vulnerability: Information disclosure
+#         }), 500
+
 @app.route('/upload_profile_picture', methods=['POST'])
 @token_required
 def upload_profile_picture(current_user):
     if 'profile_picture' not in request.files:
-        return jsonify({'error': 'No file provided'}), 400
-        
+        return jsonify({'status': 'error', 'message': 'No file provided'}), 400
+
     file = request.files['profile_picture']
-    
+
     if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
-        
+        return jsonify({'status': 'error', 'message': 'No file selected'}), 400
+
+    if not allowed_file(file.filename):
+        return jsonify({'status': 'error', 'message': 'File type not allowed'}), 400
+
+    # Check file size
+    file.seek(0, os.SEEK_END)
+    file_length = file.tell()
+    file.seek(0)
+    if file_length > MAX_FILE_SIZE:
+        return jsonify({'status': 'error', 'message': 'File too large'}), 400
+
     try:
-        # Vulnerability: No file type validation
-        # Vulnerability: Using user-controlled filename
-        # Vulnerability: No file size check
-        # Vulnerability: No content-type validation
-        filename = secure_filename(file.filename)
-        
-        # Add random prefix to prevent filename collisions
-        filename = f"{random.randint(1, 1000000)}_{filename}"
-        
-        # Vulnerability: Path traversal possible if filename contains ../
+        # Secure filename with random prefix to prevent collisions
+        ext = file.filename.rsplit('.', 1)[1].lower()
+        filename = f"{secrets.token_hex(8)}.{ext}"
         file_path = os.path.join(UPLOAD_FOLDER, filename)
-        
+
         file.save(file_path)
-        
+
         # Update database with just the filename
         execute_query(
             "UPDATE users SET profile_picture = %s WHERE id = %s",
             (filename, current_user['user_id']),
             fetch=False
         )
-        
+
         return jsonify({
             'status': 'success',
             'message': 'Profile picture uploaded successfully',
-            'file_path': os.path.join('static/uploads', filename)  # Vulnerability: Path disclosure
-        })
-        
+            'filename': filename  # Return filename only, no path disclosure
+        }), 200
+
     except Exception as e:
-        # Vulnerability: Detailed error exposure
-        print(f"Profile picture upload error: {str(e)}")
+        print(f"Profile picture upload error: {e}")
         return jsonify({
             'status': 'error',
-            'message': str(e),
-            'file_path': file_path  # Vulnerability: Information disclosure
+            'message': 'Failed to upload profile picture'
         }), 500
-
+        
 # Upload profile picture by URL (Intentionally Vulnerable to SSRF)
 @app.route('/upload_profile_picture_url', methods=['POST'])
 @token_required
