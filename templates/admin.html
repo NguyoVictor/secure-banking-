@@ -16,13 +16,23 @@
             <h1 class="admin-title">Admin Control Panel</h1>
         </div>
 
-        <div class="profile-section">
-            <!-- Vulnerability: Fixed path to admin image -->
+        <!-- Vulnerability: Fixed path to admin image -->
+        <!-- <div class="profile-section">
             <img class="profile-picture" 
                  src="{{ url_for('static', filename='uploads/admin.png') }}" 
                  alt="Admin Profile">
             <h2>System Administrator</h2>
-        </div>
+        </div> -->
+
+        <!-- SECURITY FIX: Remove hard-coded admin asset paths to prevent
+        information disclosure and unauthorized access to privileged resources -->
+        <div class="profile-section">
+            <img class="profile-picture"
+                src="{{ url_for('static', filename='uploads/admin.png') }}"
+                alt="System User">
+            <h2>System User</h2>
+        </div>  
+
         
         <div class="section">
             <h2>User Management</h2>
