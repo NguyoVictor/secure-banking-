@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import random
 import string
 import html
+import secrets
 import os
 from dotenv import load_dotenv
 from auth import generate_token, token_required, verify_token, init_auth_routes
@@ -171,23 +172,20 @@ def ai_rate_limit(f):
     
     return decorated_function
 
-UPLOAD_FOLDER = 'static/uploads'
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')
+os.makedirs(UPLOAD_FOLDER, mode=0o700, exist_ok=True)
 
 def generate_account_number():
-    return ''.join(random.choices(string.digits, k=10))
+    """Generate a secure 10-digit account number"""
+    return ''.join(secrets.choice(string.digits) for _ in range(10))
 
 def generate_card_number():
-    """Generate a 16-digit card number"""
-    # Vulnerability: Predictable card number generation
-    return ''.join(random.choices(string.digits, k=16))
+    """Generate a secure 16-digit card number"""
+    return ''.join(secrets.choice(string.digits) for _ in range(16))
 
 def generate_cvv():
-    """Generate a 3-digit CVV"""
-    # Vulnerability: Predictable CVV generation
-    return ''.join(random.choices(string.digits, k=3))
-
+    """Generate a secure 3-digit CVV"""
+    return ''.join(secrets.choice(string.digits) for _ in range(3))
 @app.route('/')
 def index():
     return render_template('index.html')
