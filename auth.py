@@ -1,4 +1,7 @@
 from flask import jsonify, request
+from flask import jsonify, request, g
+from werkzeug.security import check_password_hash
+from decimal import Decimal
 import os
 from dotenv import load_dotenv
 import jwt
@@ -172,60 +175,160 @@ def token_required(f):
     return decorated
 
 # New API endpoints with JWT authentication
+# def init_auth_routes(app):
+#     @app.route('/api/login', methods=['POST'])
+#     def api_login():
+#         auth = request.get_json()
+        
+#         if not auth or not auth.get('username') or not auth.get('password'):
+#             return jsonify({'error': 'Missing credentials'}), 401
+            
+#         # Vulnerability: SQL Injection still possible here
+#         conn = sqlite3.connect('bank.db')
+#         c = conn.cursor()
+#         query = f"SELECT * FROM users WHERE username='{auth.get('username')}' AND password='{auth.get('password')}'"
+#         c.execute(query)
+#         user = c.fetchone()
+#         conn.close()
+        
+#         if not user:
+#             return jsonify({'error': 'Invalid credentials'}), 401
+            
+#         # Generate token
+#         token = generate_token(user[0], user[1], user[5])
+        
+#         # Vulnerability: Exposed sensitive data in response
+#         return jsonify({
+#             'token': token,
+#             'user_id': user[0],
+#             'username': user[1],
+#             'account_number': user[3],
+#             'is_admin': user[5],
+#             'debug_info': {
+#                 'login_time': str(datetime.datetime.now()),
+#                 'ip_address': request.remote_addr,
+#                 'user_agent': request.headers.get('User-Agent')
+#             }
+#         })
+
+#     @app.route('/api/check_balance', methods=['GET'])
+#     @token_required
+#     def api_check_balance(current_user):
+#         # Vulnerability: No additional authorization check
+#         # Any valid token can check any account balance
+#         account_number = request.args.get('account_number')
+        
+#         conn = sqlite3.connect('bank.db')
+#         c = conn.cursor()
+#         c.execute(f"SELECT username, balance FROM users WHERE account_number='{account_number}'")
+#         user = c.fetchone()
+#         conn.close()
+        
+#         if user:
+#             return jsonify({
+#                 'username': user[0],
+#                 'balance': user[1],
+#                 'checked_by': current_user['username']
+#             })
+#         return jsonify({'error': 'Account not found'}), 404
+
+#     @app.route('/api/transfer', methods=['POST'])
+#     @token_required
+#     def api_transfer(current_user):
+#         data = request.get_json()
+        
+#         if not data or not data.get('to_account') or not data.get('amount'):
+#             return jsonify({'error': 'Missing transfer details'}), 400
+            
+#         # Vulnerability: No amount validation
+#         amount = float(data.get('amount'))
+#         to_account = data.get('to_account')
+        
+#         conn = sqlite3.connect('bank.db')
+#         c = conn.cursor()
+        
+#         # Vulnerability: Race condition in transfer
+#         c.execute(f"SELECT balance FROM users WHERE id={current_user['user_id']}")
+#         balance = c.fetchone()[0]
+        
+#         if balance >= amount:
+#             # Vulnerability: SQL injection possible in to_account
+#             c.execute(f"UPDATE users SET balance = balance - {amount} WHERE id={current_user['user_id']}")
+#             c.execute(f"UPDATE users SET balance = balance + {amount} WHERE account_number='{to_account}'")
+#             conn.commit()
+            
+#             # Vulnerability: Information disclosure
+#             c.execute(f"SELECT username, balance FROM users WHERE account_number='{to_account}'")
+#             recipient = c.fetchone()
+            
+#             conn.close()
+#             return jsonify({
+#                 'status': 'success',
+#                 'new_balance': balance - amount,
+#                 'recipient': recipient[0],
+#                 'recipient_new_balance': recipient[1]
+#             })
+            
+#         conn.close()
+#         return jsonify({'error': 'Insufficient funds'}), 400
+
 def init_auth_routes(app):
+
+    def get_db_connection():
+        conn = sqlite3.connect('bank.db')
+        conn.row_factory = sqlite3.Row
+        return conn
+
     @app.route('/api/login', methods=['POST'])
     def api_login():
         auth = request.get_json()
-        
+
         if not auth or not auth.get('username') or not auth.get('password'):
             return jsonify({'error': 'Missing credentials'}), 401
-            
-        # Vulnerability: SQL Injection still possible here
-        conn = sqlite3.connect('bank.db')
+
+        # Use parameterized query to prevent SQL injection
+        conn = get_db_connection()
         c = conn.cursor()
-        query = f"SELECT * FROM users WHERE username='{auth.get('username')}' AND password='{auth.get('password')}'"
-        c.execute(query)
+        c.execute("SELECT * FROM users WHERE username = ?", (auth['username'],))
         user = c.fetchone()
         conn.close()
-        
-        if not user:
+
+        if not user or not check_password_hash(user['password'], auth['password']):
             return jsonify({'error': 'Invalid credentials'}), 401
-            
-        # Generate token
-        token = generate_token(user[0], user[1], user[5])
-        
-        # Vulnerability: Exposed sensitive data in response
+
+        # Generate token (already patched to include expiration)
+        token = generate_token(user['id'], user['username'], user['is_admin'])
+
+        # Return minimal info, no sensitive data, no debug info
         return jsonify({
             'token': token,
-            'user_id': user[0],
-            'username': user[1],
-            'account_number': user[3],
-            'is_admin': user[5],
-            'debug_info': {
-                'login_time': str(datetime.datetime.now()),
-                'ip_address': request.remote_addr,
-                'user_agent': request.headers.get('User-Agent')
-            }
+            'user_id': user['id'],
+            'username': user['username'],
+            'is_admin': user['is_admin']
         })
 
     @app.route('/api/check_balance', methods=['GET'])
     @token_required
     def api_check_balance(current_user):
-        # Vulnerability: No additional authorization check
-        # Any valid token can check any account balance
         account_number = request.args.get('account_number')
-        
-        conn = sqlite3.connect('bank.db')
+
+        if not account_number:
+            return jsonify({'error': 'Account number required'}), 400
+
+        # Enforce that users can only check their own balance unless admin
+        if not current_user['is_admin'] and account_number != current_user.get('account_number'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        conn = get_db_connection()
         c = conn.cursor()
-        c.execute(f"SELECT username, balance FROM users WHERE account_number='{account_number}'")
+        c.execute("SELECT username, balance FROM users WHERE account_number = ?", (account_number,))
         user = c.fetchone()
         conn.close()
-        
+
         if user:
             return jsonify({
-                'username': user[0],
-                'balance': user[1],
-                'checked_by': current_user['username']
+                'username': user['username'],
+                'balance': user['balance']
             })
         return jsonify({'error': 'Account not found'}), 404
 
@@ -233,38 +336,54 @@ def init_auth_routes(app):
     @token_required
     def api_transfer(current_user):
         data = request.get_json()
-        
+
         if not data or not data.get('to_account') or not data.get('amount'):
             return jsonify({'error': 'Missing transfer details'}), 400
-            
-        # Vulnerability: No amount validation
-        amount = float(data.get('amount'))
-        to_account = data.get('to_account')
-        
-        conn = sqlite3.connect('bank.db')
+
+        try:
+            amount = Decimal(data['amount'])
+            if amount <= 0:
+                return jsonify({'error': 'Invalid transfer amount'}), 400
+        except:
+            return jsonify({'error': 'Invalid amount format'}), 400
+
+        to_account = data['to_account']
+
+        conn = get_db_connection()
         c = conn.cursor()
-        
-        # Vulnerability: Race condition in transfer
-        c.execute(f"SELECT balance FROM users WHERE id={current_user['user_id']}")
-        balance = c.fetchone()[0]
-        
-        if balance >= amount:
-            # Vulnerability: SQL injection possible in to_account
-            c.execute(f"UPDATE users SET balance = balance - {amount} WHERE id={current_user['user_id']}")
-            c.execute(f"UPDATE users SET balance = balance + {amount} WHERE account_number='{to_account}'")
-            conn.commit()
-            
-            # Vulnerability: Information disclosure
-            c.execute(f"SELECT username, balance FROM users WHERE account_number='{to_account}'")
-            recipient = c.fetchone()
-            
+
+        # Use parameterized queries for safety
+        c.execute("SELECT balance FROM users WHERE id = ?", (current_user['user_id'],))
+        row = c.fetchone()
+        if not row:
             conn.close()
-            return jsonify({
-                'status': 'success',
-                'new_balance': balance - amount,
-                'recipient': recipient[0],
-                'recipient_new_balance': recipient[1]
-            })
-            
+            return jsonify({'error': 'User not found'}), 404
+
+        balance = Decimal(row['balance'])
+
+        if balance < amount:
+            conn.close()
+            return jsonify({'error': 'Insufficient funds'}), 400
+
+        # Use a transaction to prevent race conditions
+        try:
+            conn.execute("BEGIN")
+            c.execute("UPDATE users SET balance = balance - ? WHERE id = ?", (amount, current_user['user_id']))
+            c.execute("UPDATE users SET balance = balance + ? WHERE account_number = ?", (amount, to_account))
+
+            # Optional: fetch recipient info safely
+            c.execute("SELECT username, balance FROM users WHERE account_number = ?", (to_account,))
+            recipient = c.fetchone()
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            conn.close()
+            return jsonify({'error': 'Transfer failed'}), 500
+
         conn.close()
-        return jsonify({'error': 'Insufficient funds'}), 400
+        return jsonify({
+            'status': 'success',
+            'new_balance': float(balance - amount),
+            'recipient': recipient['username'],
+            'recipient_new_balance': float(recipient['balance'])
+        })
