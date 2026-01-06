@@ -496,37 +496,92 @@ def debug_users():
         } for u in users
     ]})
 
+# @app.route('/dashboard')
+# @token_required
+# def dashboard(current_user):
+#     # Vulnerability: No input validation on user_id
+#     user = execute_query(
+#         "SELECT * FROM users WHERE id = %s",
+#         (current_user['user_id'],)
+#     )[0]
+    
+#     loans = execute_query(
+#         "SELECT * FROM loans WHERE user_id = %s",
+#         (current_user['user_id'],)
+#     )
+    
+#     # Create a user dictionary with all fields
+#     user_data = {
+#         'id': user[0],
+#         'username': user[1],
+#         'account_number': user[3],
+#         'balance': float(user[4]),
+#         'is_admin': user[5],
+#         'profile_picture': user[6] if len(user) > 6 and user[6] else 'user.png'  # Default image
+#     }
+    
+#     return render_template('dashboard.html',
+#                          user=user_data,
+#                          username=user[1],
+#                          balance=float(user[4]),
+#                          account_number=user[3],
+#                          loans=loans,
+#                          is_admin=current_user.get('is_admin', False))
+
+
 @app.route('/dashboard')
 @token_required
 def dashboard(current_user):
-    # Vulnerability: No input validation on user_id
-    user = execute_query(
-        "SELECT * FROM users WHERE id = %s",
-        (current_user['user_id'],)
-    )[0]
-    
-    loans = execute_query(
-        "SELECT * FROM loans WHERE user_id = %s",
-        (current_user['user_id'],)
-    )
-    
-    # Create a user dictionary with all fields
-    user_data = {
-        'id': user[0],
-        'username': user[1],
-        'account_number': user[3],
-        'balance': float(user[4]),
-        'is_admin': user[5],
-        'profile_picture': user[6] if len(user) > 6 and user[6] else 'user.png'  # Default image
-    }
-    
-    return render_template('dashboard.html',
-                         user=user_data,
-                         username=user[1],
-                         balance=float(user[4]),
-                         account_number=user[3],
-                         loans=loans,
-                         is_admin=current_user.get('is_admin', False))
+    try:
+        # Ensure user_id is an integer to prevent injection or misuse
+        user_id = int(current_user.get('user_id'))
+
+        # Fetch only needed fields explicitly
+        user_query = """
+            SELECT id, username, account_number, balance, is_admin, profile_picture
+            FROM users
+            WHERE id = %s
+        """
+        result = execute_query(user_query, (user_id,), fetch=True)
+        if not result:
+            abort(404)  # User not found
+
+        user = result[0]
+
+        # Safe user dictionary
+        user_data = {
+            'id': user[0],
+            'username': user[1],
+            'account_number': user[2],
+            'balance': float(user[3]),
+            'is_admin': user[4],
+            'profile_picture': user[5] if user[5] else 'user.png'
+        }
+
+        # Fetch loans securely
+        loans_query = """
+            SELECT id, amount, status, created_at
+            FROM loans
+            WHERE user_id = %s
+        """
+        loans = execute_query(loans_query, (user_id,), fetch=True) or []
+
+        return render_template(
+            'dashboard.html',
+            user=user_data,
+            username=user_data['username'],
+            balance=user_data['balance'],
+            account_number=user_data['account_number'],
+            loans=loans,
+            is_admin=user_data['is_admin']
+        )
+
+    except (ValueError, TypeError):
+        # Invalid user_id type
+        abort(400)
+    except Exception as e:
+        print(f"Dashboard error: {e}")
+        abort(500)
 
 # Check balance endpoint
 @app.route('/check_balance/<account_number>')
