@@ -1280,21 +1280,34 @@ def metadata_iam_list():
         return make_response('Forbidden', 403)
     return make_response('vulnbank-role\n', 200)
 
+# @app.route('/latest/meta-data/iam/security-credentials/vulnbank-role', methods=['GET'])
+# def metadata_iam_role():
+#     if not _is_loopback_request():
+#         return jsonify({'error': 'Forbidden'}), 403
+#     creds = {
+#         'Code': 'Success',
+#         'LastUpdated': datetime.now().isoformat(),
+#         'Type': 'AWS-HMAC',
+#         'AccessKeyId': 'ASIADEMO1234567890',
+#         'SecretAccessKey': 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYDEMODEMO',
+#         'Token': 'IQoJb3JpZ2luX2VjEJ//////////wEaCXVzLXdlc3QtMiJIMEYCIQCdemo',
+#         'Expiration': (datetime.now() + timedelta(hours=1)).isoformat(),
+#         'RoleArn': 'arn:aws:iam::123456789012:role/vulnbank-role'
+#     }
+#     return jsonify(creds)
+
 @app.route('/latest/meta-data/iam/security-credentials/vulnbank-role', methods=['GET'])
-def metadata_iam_role():
-    if not _is_loopback_request():
+@token_required
+def metadata_iam_role(current_user):
+    # Strong authorization instead of IP-based trust
+    if not current_user.get('is_admin', False):
         return jsonify({'error': 'Forbidden'}), 403
-    creds = {
-        'Code': 'Success',
-        'LastUpdated': datetime.now().isoformat(),
-        'Type': 'AWS-HMAC',
-        'AccessKeyId': 'ASIADEMO1234567890',
-        'SecretAccessKey': 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYDEMODEMO',
-        'Token': 'IQoJb3JpZ2luX2VjEJ//////////wEaCXVzLXdlc3QtMiJIMEYCIQCdemo',
-        'Expiration': (datetime.now() + timedelta(hours=1)).isoformat(),
-        'RoleArn': 'arn:aws:iam::123456789012:role/vulnbank-role'
-    }
-    return jsonify(creds)
+
+    # Metadata credentials must never be exposed
+    return jsonify({
+        'error': 'IAM metadata service disabled'
+    }), 404
+
 
 # Loan request endpoint
 @app.route('/request_loan', methods=['POST'])
