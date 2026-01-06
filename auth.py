@@ -1,24 +1,24 @@
 from flask import jsonify, request
-import jwt
-import datetime import datetime, timedelta
-import sqlite3  
 import os
-from functools import wraps
 from dotenv import load_dotenv
+import jwt
+from datetime import datetime, timedelta
+import sqlite3  
+from functools import wraps
 
-# # Vulnerable JWT implementation with common security issues
+# fixed the JWT implementation to use environment variables
+load_dotenv()
+JWT_SECRET = os.getenv("JWT_SECRET")
+ALGORITHMS = ['HS256']
 
-# # Weak secret key (CWE-326)
+
+# Vulnerable JWT implementation with common security issues
+
+# Weak secret key (CWE-326)
 # JWT_SECRET = "secret123"
 
 # # Vulnerable algorithm selection - allows 'none' algorithm
 # ALGORITHMS = ['HS256', 'none']
-
-# security fix attempt
-load_dotenv()
-
-JWT_SECRET = os.getenv("JWT_SECRET")
-ALGORITHMS = ['HS256']
 
 def generate_token(user_id, username, is_admin=False):
     """
