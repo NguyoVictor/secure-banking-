@@ -534,21 +534,63 @@ def execute_query(query, params=None, fetch=True, commit=False):
         return_connection(conn)
 
 
+# def execute_transaction(queries_and_params):
+#     """
+#     Execute multiple queries in a transaction
+#     Vulnerability: No input validation on queries
+#     queries_and_params: list of tuples (query, params)
+#     """
+#     conn = get_connection()
+#     try:
+#         with conn.cursor() as cursor:
+#             for query, params in queries_and_params:
+#                 cursor.execute(query, params)
+#             conn.commit()
+#     except Exception as e:
+#         # Vulnerability: Transaction rollback exposed
+#         conn.rollback()
+#         raise e
+#     finally:
+#         return_connection(conn)
+
 def execute_transaction(queries_and_params):
     """
-    Execute multiple queries in a transaction
-    Vulnerability: No input validation on queries
-    queries_and_params: list of tuples (query, params)
+    Securely execute multiple SQL queries in a single transaction.
+
+    queries_and_params: list of tuples -> (query: str, params: tuple | list)
     """
+    if not isinstance(queries_and_params, (list, tuple)) or not queries_and_params:
+        raise ValueError("queries_and_params must be a non-empty list of (query, params) tuples")
+
     conn = get_connection()
     try:
         with conn.cursor() as cursor:
-            for query, params in queries_and_params:
+            for item in queries_and_params:
+                if (
+                    not isinstance(item, (tuple, list)) or
+                    len(item) != 2
+                ):
+                    raise ValueError("Each transaction item must be (query, params)")
+
+                query, params = item
+
+                if not isinstance(query, str):
+                    raise ValueError("Query must be a string")
+
+                if params is None:
+                    params = ()
+
+                if not isinstance(params, (tuple, list)):
+                    raise ValueError("Query parameters must be a tuple or list")
+
                 cursor.execute(query, params)
+
             conn.commit()
-    except Exception as e:
-        # Vulnerability: Transaction rollback exposed
+
+    except Exception:
         conn.rollback()
-        raise e
+        # Do not expose database internals
+        raise RuntimeError("Database transaction failed")
+
     finally:
         return_connection(conn)
