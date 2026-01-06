@@ -648,22 +648,87 @@ async function showUpdateLimit(cardId) {
     const modal = document.getElementById('cardDetailsModal');
     const content = document.getElementById('cardDetailsContent');
     
-    // Vulnerability: Exposing form that allows updating any field
-    content.innerHTML = `
-        <h4>Update Card Limit</h4>
-        <form id="updateCardForm" onsubmit="return handleCardUpdate(event, ${cardId})">
-            <div class="form-group">
-                <label for="card_limit_update">Card Limit</label>
-                <input type="number" id="card_limit_update" name="card_limit" value="${card.limit}" step="0.01" required>
-            </div>
-            <div class="modal-footer">
-                <button type="submit">Update Limit</button>
-                <button type="button" onclick="hideCardDetailsModal()">Cancel</button>
-            </div>
-        </form>
-    `;
+    // // Vulnerability: Exposing form that allows updating any field
+    // content.innerHTML = `
+    //     <h4>Update Card Limit</h4>
+    //     <form id="updateCardForm" onsubmit="return handleCardUpdate(event, ${cardId})">
+    //         <div class="form-group">
+    //             <label for="card_limit_update">Card Limit</label>
+    //             <input type="number" id="card_limit_update" name="card_limit" value="${card.limit}" step="0.01" required>
+    //         </div>
+    //         <div class="modal-footer">
+    //             <button type="submit">Update Limit</button>
+    //             <button type="button" onclick="hideCardDetailsModal()">Cancel</button>
+    //         </div>
+    //     </form>
+    // `;
     
-    modal.style.display = 'flex';
+    // modal.style.display = 'flex';
+
+    // SECURITY FIX: Prevent DOM-based XSS and unauthorized field manipulation by
+    // removing innerHTML usage, avoiding inline event handlers, and strictly
+    // controlling which fields can be updated and how values are validated.
+       content.innerHTML = '';
+
+            const title = document.createElement('h4');
+            title.textContent = 'Update Card Limit';
+
+const form = document.createElement('form');
+form.id = 'updateCardForm';
+
+const group = document.createElement('div');
+group.className = 'form-group';
+
+const label = document.createElement('label');
+label.setAttribute('for', 'card_limit_update');
+label.textContent = 'Card Limit';
+
+const input = document.createElement('input');
+input.type = 'number';
+input.id = 'card_limit_update';
+input.name = 'card_limit';
+input.step = '0.01';
+input.required = true;
+
+// Defensive value coercion
+input.value = Number(card.limit).toFixed(2);
+input.min = '0';
+input.max = '100000'; // enforce reasonable business limit
+
+group.append(label, input);
+
+const footer = document.createElement('div');
+footer.className = 'modal-footer';
+
+const submitBtn = document.createElement('button');
+submitBtn.type = 'submit';
+submitBtn.textContent = 'Update Limit';
+
+const cancelBtn = document.createElement('button');
+cancelBtn.type = 'button';
+cancelBtn.textContent = 'Cancel';
+cancelBtn.addEventListener('click', hideCardDetailsModal);
+
+footer.append(submitBtn, cancelBtn);
+form.append(group, footer);
+content.append(title, form);
+
+form.addEventListener('submit', (event) => {
+    event.preventDefault();
+
+    const newLimit = Number(input.value);
+
+    // Client-side validation guard
+    if (isNaN(newLimit) || newLimit <= 0 || newLimit > 100000) {
+        alert('Invalid card limit value');
+        return;
+    }
+
+    handleCardUpdate(cardId, newLimit);
+});
+
+modal.style.display = 'flex';
+
 }
 
 // Add handleCardUpdate function
