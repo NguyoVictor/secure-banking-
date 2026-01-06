@@ -28,6 +28,8 @@ import requests
 from urllib.parse import urlparse
 import platform
 
+app = Flask(__name__)
+
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 MAX_FILE_SIZE = 2 * 1024 * 1024  # 2 MB
 
@@ -1491,136 +1493,294 @@ def admin_panel(current_user):
     )
 
 
+# @app.route('/admin/approve_loan/<int:loan_id>', methods=['POST'])
+# @token_required
+# def approve_loan(current_user, loan_id):
+#     if not current_user.get('is_admin'):
+#         return jsonify({'error': 'Access Denied'}), 403
+    
+#     try:
+#         # Vulnerability: Race condition in loan approval
+#         # Vulnerability: No validation if loan is already approved
+#         loan = execute_query(
+#             "SELECT * FROM loans WHERE id = %s",
+#             (loan_id,)
+#         )[0]
+        
+#         if loan:
+#             # Vulnerability: No transaction atomicity
+#             # Vulnerability: No validation of loan amount
+#             queries = [
+#                 (
+#                     "UPDATE loans SET status='approved' WHERE id = %s",
+#                     (loan_id,)
+#                 ),
+#                 (
+#                     "UPDATE users SET balance = balance + %s WHERE id = %s",
+#                     (float(loan[2]), loan[1])
+#                 )
+#             ]
+#             execute_transaction(queries)
+            
+#             return jsonify({
+#                 'status': 'success',
+#                 'message': 'Loan approved successfully',
+#                 'debug_info': {  # Vulnerability: Information disclosure
+#                     'loan_id': loan_id,
+#                     'loan_amount': float(loan[2]),
+#                     'user_id': loan[1],
+#                     'approved_by': current_user['username'],
+#                     'approved_at': str(datetime.now()),
+#                     'loan_details': {  # Excessive data exposure
+#                         'id': loan[0],
+#                         'user_id': loan[1],
+#                         'amount': float(loan[2]),
+#                         'status': loan[3]
+#                     }
+#                 }
+#             })
+        
+#         return jsonify({
+#             'status': 'error',
+#             'message': 'Loan not found',
+#             'loan_id': loan_id
+#         }), 404
+        
+#     except Exception as e:
+#         # Vulnerability: Detailed error exposure
+#         print(f"Loan approval error: {str(e)}")
+#         return jsonify({
+#             'status': 'error',
+#             'message': 'Failed to approve loan',
+#             'error': str(e),
+#             'loan_id': loan_id
+#         }), 500
+
+# # Delete account endpoint
+# @app.route('/admin/delete_account/<int:user_id>', methods=['POST'])
+# @token_required
+# def delete_account(current_user, user_id):
+#     if not current_user.get('is_admin'):
+#         return jsonify({'error': 'Access Denied'}), 403
+    
+#     try:
+#         # Vulnerability: No user confirmation required
+#         # Vulnerability: No audit logging
+#         # Vulnerability: No backup creation
+#         execute_query(
+#             "DELETE FROM users WHERE id = %s",
+#             (user_id,),
+#             fetch=False
+#         )
+        
+#         return jsonify({
+#             'status': 'success',
+#             'message': 'Account deleted successfully',
+#             'debug_info': {
+#                 'deleted_user_id': user_id,
+#                 'deleted_by': current_user['username'],
+#                 'timestamp': str(datetime.now())
+#             }
+#         })
+        
+#     except Exception as e:
+#         print(f"Delete account error: {str(e)}")
+#         return jsonify({
+#             'status': 'error',
+#             'message': str(e)
+#         }), 500
+
+# # Create admin endpoint
+# @app.route('/admin/create_admin', methods=['POST'])
+# @token_required
+# def create_admin(current_user):
+#     if not current_user.get('is_admin'):
+#         return jsonify({'error': 'Access Denied'}), 403
+    
+#     try:
+#         data = request.get_json()
+#         username = data.get('username')
+#         password = data.get('password')
+#         account_number = generate_account_number()
+        
+#         # Vulnerability: SQL injection possible
+#         # Vulnerability: No password complexity requirements
+#         # Vulnerability: No account number uniqueness check
+#         execute_query(
+#             f"INSERT INTO users (username, password, account_number, is_admin) VALUES ('{username}', '{password}', '{account_number}', true)",
+#             fetch=False
+#         )
+        
+#         return jsonify({
+#             'status': 'success',
+#             'message': 'Admin created successfully'
+#         })
+        
+#     except Exception as e:
+#         print(f"Create admin error: {str(e)}")
+#         return jsonify({
+#             'status': 'error',
+#             'message': str(e)
+#         }), 500
+
+# -------------------------------
+# Admin Panel Endpoints
+# -------------------------------
+
+@app.route('/sup3r_s3cr3t_admin')
+@token_required
+def admin_panel(current_user):
+    if not current_user.get('is_admin', False):
+        return "Access Denied", 403
+
+    # Pagination for users
+    page = max(request.args.get('page', default=1, type=int), 1)
+    per_page = min(request.args.get('per_page', default=10, type=int), 50)
+
+    total_users = execute_query("SELECT COUNT(*) FROM users")[0][0]
+    total_pages = max((total_users + per_page - 1) // per_page, 1)
+    page = min(page, total_pages)
+    offset = (page - 1) * per_page
+
+    users = execute_query(
+        "SELECT id, username, account_number, balance, is_admin FROM users ORDER BY id LIMIT %s OFFSET %s",
+        (per_page, offset)
+    )
+
+    # Pagination for pending loans
+    loan_page = max(request.args.get('loan_page', default=1, type=int), 1)
+    loan_per_page = min(request.args.get('loan_per_page', default=10, type=int), 50)
+    total_pending_loans = execute_query("SELECT COUNT(*) FROM loans WHERE status='pending'")[0][0]
+    loan_total_pages = max((total_pending_loans + loan_per_page - 1) // loan_per_page, 1)
+    loan_page = min(loan_page, loan_total_pages)
+    loan_offset = (loan_page - 1) * loan_per_page
+
+    pending_loans = execute_query(
+        "SELECT id, user_id, amount, status, created_at FROM loans WHERE status='pending' ORDER BY id LIMIT %s OFFSET %s",
+        (loan_per_page, loan_offset)
+    )
+
+    return render_template(
+        'admin.html',
+        users=users,
+        pending_loans=pending_loans,
+        page=page,
+        total_pages=total_pages,
+        total_users=total_users,
+        per_page=per_page,
+        loan_page=loan_page,
+        loan_total_pages=loan_total_pages,
+        total_pending_loans=total_pending_loans,
+        loan_per_page=loan_per_page
+    )
+
+# -------------------------------
+# Approve Loan
+# -------------------------------
+
 @app.route('/admin/approve_loan/<int:loan_id>', methods=['POST'])
 @token_required
 def approve_loan(current_user, loan_id):
-    if not current_user.get('is_admin'):
+    if not current_user.get('is_admin', False):
         return jsonify({'error': 'Access Denied'}), 403
-    
-    try:
-        # Vulnerability: Race condition in loan approval
-        # Vulnerability: No validation if loan is already approved
-        loan = execute_query(
-            "SELECT * FROM loans WHERE id = %s",
-            (loan_id,)
-        )[0]
-        
-        if loan:
-            # Vulnerability: No transaction atomicity
-            # Vulnerability: No validation of loan amount
-            queries = [
-                (
-                    "UPDATE loans SET status='approved' WHERE id = %s",
-                    (loan_id,)
-                ),
-                (
-                    "UPDATE users SET balance = balance + %s WHERE id = %s",
-                    (float(loan[2]), loan[1])
-                )
-            ]
-            execute_transaction(queries)
-            
-            return jsonify({
-                'status': 'success',
-                'message': 'Loan approved successfully',
-                'debug_info': {  # Vulnerability: Information disclosure
-                    'loan_id': loan_id,
-                    'loan_amount': float(loan[2]),
-                    'user_id': loan[1],
-                    'approved_by': current_user['username'],
-                    'approved_at': str(datetime.now()),
-                    'loan_details': {  # Excessive data exposure
-                        'id': loan[0],
-                        'user_id': loan[1],
-                        'amount': float(loan[2]),
-                        'status': loan[3]
-                    }
-                }
-            })
-        
-        return jsonify({
-            'status': 'error',
-            'message': 'Loan not found',
-            'loan_id': loan_id
-        }), 404
-        
-    except Exception as e:
-        # Vulnerability: Detailed error exposure
-        print(f"Loan approval error: {str(e)}")
-        return jsonify({
-            'status': 'error',
-            'message': 'Failed to approve loan',
-            'error': str(e),
-            'loan_id': loan_id
-        }), 500
 
-# Delete account endpoint
+    try:
+        loan = execute_query(
+            "SELECT id, user_id, amount, status FROM loans WHERE id = %s FOR UPDATE",
+            (loan_id,)
+        )
+        if not loan:
+            return jsonify({'status': 'error', 'message': 'Loan not found'}), 404
+
+        loan = loan[0]
+
+        if loan[3] == 'approved':
+            return jsonify({'status': 'error', 'message': 'Loan already approved'}), 400
+
+        amount = float(loan[2])
+        if amount <= 0:
+            return jsonify({'status': 'error', 'message': 'Invalid loan amount'}), 400
+
+        # Atomic transaction
+        queries = [
+            ("UPDATE loans SET status='approved' WHERE id = %s", (loan_id,)),
+            ("UPDATE users SET balance = balance + %s WHERE id = %s", (amount, loan[1]))
+        ]
+        execute_transaction(queries)
+
+        return jsonify({'status': 'success', 'message': 'Loan approved successfully'})
+
+    except Exception as e:
+        print(f"Loan approval error: {str(e)}")
+        return jsonify({'status': 'error', 'message': 'Failed to approve loan'}), 500
+
+# -------------------------------
+# Delete Account
+# -------------------------------
+
 @app.route('/admin/delete_account/<int:user_id>', methods=['POST'])
 @token_required
 def delete_account(current_user, user_id):
-    if not current_user.get('is_admin'):
+    if not current_user.get('is_admin', False):
         return jsonify({'error': 'Access Denied'}), 403
-    
+
     try:
-        # Vulnerability: No user confirmation required
-        # Vulnerability: No audit logging
-        # Vulnerability: No backup creation
+        # Optional: soft delete / backup before hard delete
         execute_query(
             "DELETE FROM users WHERE id = %s",
             (user_id,),
             fetch=False
         )
-        
-        return jsonify({
-            'status': 'success',
-            'message': 'Account deleted successfully',
-            'debug_info': {
-                'deleted_user_id': user_id,
-                'deleted_by': current_user['username'],
-                'timestamp': str(datetime.now())
-            }
-        })
-        
+
+        # Audit log (server-side only)
+        print(f"User {user_id} deleted by admin {current_user['username']} at {datetime.now()}")
+
+        return jsonify({'status': 'success', 'message': 'Account deleted successfully'})
+
     except Exception as e:
         print(f"Delete account error: {str(e)}")
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500
+        return jsonify({'status': 'error', 'message': 'Failed to delete account'}), 500
 
-# Create admin endpoint
+# -------------------------------
+# Create Admin
+# -------------------------------
+
 @app.route('/admin/create_admin', methods=['POST'])
 @token_required
 def create_admin(current_user):
-    if not current_user.get('is_admin'):
+    if not current_user.get('is_admin', False):
         return jsonify({'error': 'Access Denied'}), 403
-    
+
     try:
-        data = request.get_json()
-        username = data.get('username')
-        password = data.get('password')
+        data = request.get_json() or {}
+        username = data.get('username', '').strip()
+        password = data.get('password', '').strip()
+
+        if not username or not password:
+            return jsonify({'status': 'error', 'message': 'Username and password are required'}), 400
+
+        if len(password) < 8:
+            return jsonify({'status': 'error', 'message': 'Password must be at least 8 characters'}), 400
+
+        hashed_password = generate_password_hash(password)
         account_number = generate_account_number()
-        
-        # Vulnerability: SQL injection possible
-        # Vulnerability: No password complexity requirements
-        # Vulnerability: No account number uniqueness check
+
+        # Ensure username uniqueness
+        existing = execute_query("SELECT id FROM users WHERE username = %s", (username,))
+        if existing:
+            return jsonify({'status': 'error', 'message': 'Username already exists'}), 400
+
         execute_query(
-            f"INSERT INTO users (username, password, account_number, is_admin) VALUES ('{username}', '{password}', '{account_number}', true)",
+            "INSERT INTO users (username, password, account_number, is_admin) VALUES (%s, %s, %s, true)",
+            (username, hashed_password, account_number),
             fetch=False
         )
-        
-        return jsonify({
-            'status': 'success',
-            'message': 'Admin created successfully'
-        })
-        
+
+        return jsonify({'status': 'success', 'message': 'Admin created successfully'})
+
     except Exception as e:
         print(f"Create admin error: {str(e)}")
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500
-
+        return jsonify({'status': 'error', 'message': 'Failed to create admin'}), 500
 
 # Forgot password endpoint
 @app.route('/forgot-password', methods=['GET', 'POST'])
