@@ -66,7 +66,47 @@
                     {% endfor %}
                 </tbody>
             </table> -->
-            
+
+
+            <div class="section">
+                <h2>User Management</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Username</th>
+                        <th>Account</th>
+                        <th>Balance</th>
+                        <th>Role</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+            <tbody>
+                    {% for user in users %}
+                 <tr>
+                <td>{{ user[0] }}</td>
+                <td>{{ user[1] }}</td>
+
+                <!-- Mask account number -->
+                <td>****{{ user[3][-4:] }}</td>
+
+                <!-- Limit balance exposure -->
+                <td>${{ "%.2f"|format(user[4]) }}</td>
+
+                <!-- Role abstraction -->
+                <td>{{ 'Admin' if user[5] else 'User' }}</td>
+
+                <td>
+                    <form class="delete-account-form"
+                          data-user-id="{{ user[0] }}"
+                          onsubmit="return confirm('Are you sure you want to delete this user? This action cannot be undone.');">
+                        <button type="submit">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 
             <div class="pagination">
                 <div class="page-summary">
