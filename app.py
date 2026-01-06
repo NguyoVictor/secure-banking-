@@ -1,8 +1,11 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify, make_response
 from flask import request, jsonify, render_template, make_response
 from flask import request, jsonify, render_template
+from flask import render_template, abort
 from datetime import datetime, timedelta
 from datetime import datetime
+from flask import request, jsonify
+from decimal import Decimal, InvalidOperation
 import random
 import string
 import html
@@ -584,108 +587,258 @@ def dashboard(current_user):
         abort(500)
 
 # Check balance endpoint
-@app.route('/check_balance/<account_number>')
-def check_balance(account_number):
-    # Broken Object Level Authorization (BOLA) vulnerability
-    # No authentication check, anyone can check any account balance
-    try:
-        # Vulnerability: SQL Injection possible
-        user = execute_query(
-            f"SELECT username, balance FROM users WHERE account_number='{account_number}'"
-        )
+# @app.route('/check_balance/<account_number>')
+# def check_balance(account_number):
+#     # Broken Object Level Authorization (BOLA) vulnerability
+#     # No authentication check, anyone can check any account balance
+#     try:
+#         # Vulnerability: SQL Injection possible
+#         user = execute_query(
+#             f"SELECT username, balance FROM users WHERE account_number='{account_number}'"
+#         )
         
-        if user:
-            # Vulnerability: Information disclosure
+#         if user:
+#             # Vulnerability: Information disclosure
+#             return jsonify({
+#                 'status': 'success',
+#                 'username': user[0][0],
+#                 'balance': float(user[0][1]),
+#                 'account_number': account_number
+#             })
+#         return jsonify({
+#             'status': 'error',
+#             'message': 'Account not found'
+#         }), 404
+#     except Exception as e:
+#         return jsonify({
+#             'status': 'error',
+#             'message': str(e)
+#         }), 500
+
+@app.route('/check_balance/<account_number>')
+@token_required
+def check_balance(current_user, account_number):
+    try:
+        # Ensure account_number is treated as string and parameterized
+        query = """
+            SELECT username, balance, account_number
+            FROM users
+            WHERE account_number = %s
+        """
+        result = execute_query(query, (account_number,), fetch=True)
+
+        if not result:
             return jsonify({
-                'status': 'success',
-                'username': user[0][0],
-                'balance': float(user[0][1]),
-                'account_number': account_number
-            })
+                'status': 'error',
+                'message': 'Account not found'
+            }), 404
+
+        user = result[0]
+
+        # Object-level authorization: only allow access if current user owns the account
+        if user[2] != current_user.get('account_number') and not current_user.get('is_admin', False):
+            return jsonify({
+                'status': 'error',
+                'message': 'Unauthorized access'
+            }), 403
+
         return jsonify({
-            'status': 'error',
-            'message': 'Account not found'
-        }), 404
+            'status': 'success',
+            'username': user[0],
+            'balance': float(user[1])
+        }), 200
+
     except Exception as e:
+        print(f"Check balance error: {e}")
         return jsonify({
             'status': 'error',
-            'message': str(e)
+            'message': 'Failed to fetch account balance'
         }), 500
 
-# Transfer endpoint
+# # Transfer endpoint
+# @app.route('/transfer', methods=['POST'])
+# @token_required
+# def transfer(current_user):
+#     try:
+#         data = request.get_json()
+#         # Vulnerability: No input validation on amount
+#         # Vulnerability: Negative amounts allowed
+#         amount = float(data.get('amount'))
+#         to_account = data.get('to_account')
+        
+#         # Get sender's account number
+#         # Race condition vulnerability in checking balance
+#         sender_data = execute_query(
+#             "SELECT account_number, balance FROM users WHERE id = %s",
+#             (current_user['user_id'],)
+#         )[0]
+        
+#         from_account = sender_data[0]
+#         balance = float(sender_data[1])
+        
+#         if balance >= abs(amount):  # Check against absolute value of amount
+#             try:
+#                 # Vulnerability: Negative transfers possible
+#                 # Vulnerability: No transaction atomicity
+#                 queries = [
+#                     (
+#                         "UPDATE users SET balance = balance - %s WHERE id = %s",
+#                         (amount, current_user['user_id'])
+#                     ),
+#                     (
+#                         "UPDATE users SET balance = balance + %s WHERE account_number = %s",
+#                         (amount, to_account)
+#                     ),
+#                     (
+#                         """INSERT INTO transactions 
+#                            (from_account, to_account, amount, transaction_type, description)
+#                            VALUES (%s, %s, %s, %s, %s)""",
+#                         (from_account, to_account, amount, 'transfer', 
+#                          data.get('description', 'Transfer'))
+#                     )
+#                 ]
+#                 execute_transaction(queries)
+                
+#                 return jsonify({
+#                     'status': 'success',
+#                     'message': 'Transfer Completed',
+#                     'new_balance': balance - amount
+#                 })
+                
+#             except Exception as e:
+#                 return jsonify({
+#                     'status': 'error',
+#                     'message': str(e)
+#                 }), 500
+#         else:
+#             return jsonify({
+#                 'status': 'error',
+#                 'message': 'Insufficient funds'
+#             }), 400
+            
+#     except Exception as e:
+#         return jsonify({
+#             'status': 'error',
+#             'message': str(e)
+#         }), 500
+
 @app.route('/transfer', methods=['POST'])
 @token_required
 def transfer(current_user):
     try:
         data = request.get_json()
-        # Vulnerability: No input validation on amount
-        # Vulnerability: Negative amounts allowed
-        amount = float(data.get('amount'))
+        if not data:
+            return jsonify({'status': 'error', 'message': 'Invalid JSON payload'}), 400
+
+        # Validate amount
+        try:
+            amount = Decimal(data.get('amount'))
+            if amount <= 0:
+                return jsonify({'status': 'error', 'message': 'Amount must be positive'}), 400
+        except (TypeError, InvalidOperation):
+            return jsonify({'status': 'error', 'message': 'Invalid amount format'}), 400
+
         to_account = data.get('to_account')
-        
-        # Get sender's account number
-        # Race condition vulnerability in checking balance
-        sender_data = execute_query(
-            "SELECT account_number, balance FROM users WHERE id = %s",
-            (current_user['user_id'],)
-        )[0]
-        
-        from_account = sender_data[0]
-        balance = float(sender_data[1])
-        
-        if balance >= abs(amount):  # Check against absolute value of amount
-            try:
-                # Vulnerability: Negative transfers possible
-                # Vulnerability: No transaction atomicity
-                queries = [
-                    (
-                        "UPDATE users SET balance = balance - %s WHERE id = %s",
-                        (amount, current_user['user_id'])
-                    ),
-                    (
-                        "UPDATE users SET balance = balance + %s WHERE account_number = %s",
-                        (amount, to_account)
-                    ),
-                    (
-                        """INSERT INTO transactions 
-                           (from_account, to_account, amount, transaction_type, description)
-                           VALUES (%s, %s, %s, %s, %s)""",
-                        (from_account, to_account, amount, 'transfer', 
-                         data.get('description', 'Transfer'))
-                    )
-                ]
-                execute_transaction(queries)
-                
-                return jsonify({
-                    'status': 'success',
-                    'message': 'Transfer Completed',
-                    'new_balance': balance - amount
-                })
-                
-            except Exception as e:
-                return jsonify({
-                    'status': 'error',
-                    'message': str(e)
-                }), 500
-        else:
-            return jsonify({
-                'status': 'error',
-                'message': 'Insufficient funds'
-            }), 400
-            
+        if not to_account:
+            return jsonify({'status': 'error', 'message': 'Recipient account required'}), 400
+
+        # Fetch sender securely
+        sender_query = "SELECT account_number, balance FROM users WHERE id = %s"
+        sender_result = execute_query(sender_query, (current_user['user_id'],), fetch=True)
+        if not sender_result:
+            return jsonify({'status': 'error', 'message': 'Sender account not found'}), 404
+
+        from_account, balance = sender_result[0]
+        balance = Decimal(balance)
+
+        if balance < amount:
+            return jsonify({'status': 'error', 'message': 'Insufficient funds'}), 400
+
+        # Transaction atomicity
+        queries = [
+            ("UPDATE users SET balance = balance - %s WHERE id = %s", (amount, current_user['user_id'])),
+            ("UPDATE users SET balance = balance + %s WHERE account_number = %s", (amount, to_account)),
+            ("INSERT INTO transactions (from_account, to_account, amount, transaction_type, description) "
+             "VALUES (%s, %s, %s, %s, %s)",
+             (from_account, to_account, amount, 'transfer', data.get('description', 'Transfer')))
+        ]
+        execute_transaction(queries)
+
+        return jsonify({
+            'status': 'success',
+            'message': 'Transfer completed',
+            'new_balance': float(balance - amount)
+        }), 200
+
     except Exception as e:
+        print(f"Transfer error: {e}")
         return jsonify({
             'status': 'error',
-            'message': str(e)
+            'message': 'Transfer failed'
         }), 500
 
 # Get transaction history endpoint
+# @app.route('/transactions/<account_number>')
+# def get_transaction_history(account_number):
+#     # Vulnerability: No authentication required (BOLA)
+#     # Vulnerability: SQL Injection possible
+#     try:
+#         query = f"""
+#             SELECT 
+#                 id,
+#                 from_account,
+#                 to_account,
+#                 amount,
+#                 timestamp,
+#                 transaction_type,
+#                 description
+#             FROM transactions 
+#             WHERE from_account='{account_number}' OR to_account='{account_number}'
+#             ORDER BY timestamp DESC
+#         """
+        
+#         transactions = execute_query(query)
+        
+#         # Vulnerability: Information disclosure
+#         transaction_list = [{
+#             'id': t[0],
+#             'from_account': t[1],
+#             'to_account': t[2],
+#             'amount': float(t[3]),
+#             'timestamp': str(t[4]),
+#             'type': t[5],
+#             'description': t[6]
+#             #'query_used': query  # Vulnerability: Exposing SQL query
+#         } for t in transactions]
+        
+#         return jsonify({
+#             'status': 'success',
+#             'account_number': account_number,
+#             'transactions': transaction_list,
+#             'server_time': str(datetime.now())  # Vulnerability: Server information disclosure
+#         })
+        
+#     except Exception as e:
+#         return jsonify({
+#             'status': 'error',
+#             'message': str(e),
+#             'query': query,  # Vulnerability: Query exposure
+#             'account_number': account_number
+#         }), 500
+
 @app.route('/transactions/<account_number>')
-def get_transaction_history(account_number):
-    # Vulnerability: No authentication required (BOLA)
-    # Vulnerability: SQL Injection possible
+@token_required
+def get_transaction_history(current_user, account_number):
     try:
-        query = f"""
+        # Object-level authorization: only owner or admin can access
+        if account_number != current_user.get('account_number') and not current_user.get('is_admin', False):
+            return jsonify({
+                'status': 'error',
+                'message': 'Unauthorized access'
+            }), 403
+
+        # Parameterized query to prevent SQL injection
+        query = """
             SELECT 
                 id,
                 from_account,
@@ -694,14 +847,12 @@ def get_transaction_history(account_number):
                 timestamp,
                 transaction_type,
                 description
-            FROM transactions 
-            WHERE from_account='{account_number}' OR to_account='{account_number}'
+            FROM transactions
+            WHERE from_account = %s OR to_account = %s
             ORDER BY timestamp DESC
         """
-        
-        transactions = execute_query(query)
-        
-        # Vulnerability: Information disclosure
+        transactions = execute_query(query, (account_number, account_number), fetch=True) or []
+
         transaction_list = [{
             'id': t[0],
             'from_account': t[1],
@@ -710,22 +861,19 @@ def get_transaction_history(account_number):
             'timestamp': str(t[4]),
             'type': t[5],
             'description': t[6]
-            #'query_used': query  # Vulnerability: Exposing SQL query
+            
         } for t in transactions]
-        
+
         return jsonify({
             'status': 'success',
-            'account_number': account_number,
-            'transactions': transaction_list,
-            'server_time': str(datetime.now())  # Vulnerability: Server information disclosure
-        })
-        
+            'transactions': transaction_list
+        }), 200
+
     except Exception as e:
+        print(f"Transaction history error: {e}")
         return jsonify({
             'status': 'error',
-            'message': str(e),
-            'query': query,  # Vulnerability: Query exposure
-            'account_number': account_number
+            'message': 'Failed to fetch transactions'
         }), 500
 
 @app.route('/upload_profile_picture', methods=['POST'])
