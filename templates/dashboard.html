@@ -261,7 +261,7 @@
                 <h2 class="section-title">Request a Loan</h2>
             </div>
             <!-- Vulnerability: No loan amount validation -->
-            <form id="loanForm" class="form-section">
+            <!-- <form id="loanForm" class="form-section">
                 <div class="form-group">
                     <label for="loan_amount">Loan Amount</label>
                     <input type="number" id="loan_amount" name="amount" placeholder="Enter the amount you need" step="0.01" required>
@@ -295,7 +295,56 @@
                     </tbody>
                 </table>
             </div>
+            {% endif %} -->
+
+            <!-- SECURITY FIX: Add CSRF token and validate loan amount to enforce business rules -->
+                        <form id="loanForm" class="form-section" method="POST">
+                <!-- CSRF Protection -->
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <div class="form-group">
+                    <label for="loan_amount">Loan Amount</label>
+                    <input type="number"
+                        id="loan_amount"
+                        name="amount"
+                        placeholder="Enter the amount you need"
+                        step="0.01"
+                        required
+                        min="100"        
+                        max="50000">     <!-- Maximum loan amount -->
+                </div>
+
+                <button type="submit">Submit Loan Request</button>
+            </form>
+
+            {% if loans %}
+            <div class="loans-section" style="margin-top: 2rem;">
+                <h3 style="margin-bottom: 1rem;">Your Loan Applications</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Amount</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for loan in loans %}
+                        <tr>
+                            <td>${{ "%.2f"|format(loan[2]) }}</td>
+                            <td>
+                                {% if loan[3] == 'pending' %}
+                                    <span class="status-pending">{{ loan[3] }}</span>
+                                {% else %}
+                                    <span class="status-approved">{{ loan[3] }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
             {% endif %}
+
         </div>
         
         <!-- Transaction history section -->
