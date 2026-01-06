@@ -1201,22 +1201,36 @@ def internal_config():
     return jsonify(cfg)
 
 # Cloud metadata mock (e.g., AWS IMDS) for SSRF demos
+# @app.route('/latest/meta-data/', methods=['GET'])
+# def metadata_root():
+#     if not _is_loopback_request():
+#         return make_response('Forbidden', 403)
+#     body = '\n'.join([
+#         'ami-id',
+#         'hostname',
+#         'iam/',
+#         'instance-id',
+#         'local-ipv4',
+#         'public-ipv4',
+#         'security-groups'
+#     ]) + '\n'
+#     resp = make_response(body, 200)
+#     resp.mimetype = 'text/plain'
+#     return resp
+
 @app.route('/latest/meta-data/', methods=['GET'])
-def metadata_root():
-    if not _is_loopback_request():
+@token_required
+def metadata_root(current_user):
+    # Strong authorization instead of IP trust
+    if not current_user.get('is_admin', False):
         return make_response('Forbidden', 403)
-    body = '\n'.join([
-        'ami-id',
-        'hostname',
-        'iam/',
-        'instance-id',
-        'local-ipv4',
-        'public-ipv4',
-        'security-groups'
-    ]) + '\n'
-    resp = make_response(body, 200)
-    resp.mimetype = 'text/plain'
-    return resp
+
+    # Do NOT expose metadata in production
+    return make_response(
+        'Metadata service disabled in production',
+        404
+    )
+
 
 @app.route('/latest/meta-data/ami-id', methods=['GET'])
 def metadata_ami():
