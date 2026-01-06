@@ -3,6 +3,7 @@ import os
 from dotenv import load_dotenv
 import jwt
 from datetime import datetime, timedelta
+from jwt import ExpiredSignatureError, InvalidTokenError
 import sqlite3  
 from functools import wraps
 
@@ -51,28 +52,47 @@ def generate_token(user_id, username, is_admin=False, expires_minutes=60):
     token = jwt.encode(payload, JWT_SECRET, algorithm='HS256')
     return token
 
+# def verify_token(token):
+#     """
+#     Verify JWT token with multiple vulnerabilities
+#     - Accepts 'none' algorithm (CWE-347)
+#     - No signature verification in some cases
+#     - No expiration check
+#     """
+#     try:
+#         # Vulnerability: Accepts any algorithm, including 'none'
+#         payload = jwt.decode(token, JWT_SECRET, algorithms=ALGORITHMS)
+#         return payload
+#     except jwt.exceptions.InvalidSignatureError:
+#         # Vulnerability: Still accepts tokens in some error cases
+#         try:
+#             # Second try without verification
+#             payload = jwt.decode(token, options={'verify_signature': False})
+#             return payload
+#         except:
+#             return None
+#     except Exception as e:
+#         # Vulnerability: Detailed error exposure in logs
+#         print(f"Token verification error: {str(e)}")
+#         return None
 def verify_token(token):
     """
-    Verify JWT token with multiple vulnerabilities
-    - Accepts 'none' algorithm (CWE-347)
-    - No signature verification in some cases
-    - No expiration check
+    Verify JWT token securely
+    - Checks signature using HS256 only
+    - Checks expiration automatically
     """
     try:
-        # Vulnerability: Accepts any algorithm, including 'none'
-        payload = jwt.decode(token, JWT_SECRET, algorithms=ALGORITHMS)
+        payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
         return payload
-    except jwt.exceptions.InvalidSignatureError:
-        # Vulnerability: Still accepts tokens in some error cases
-        try:
-            # Second try without verification
-            payload = jwt.decode(token, options={'verify_signature': False})
-            return payload
-        except:
-            return None
-    except Exception as e:
-        # Vulnerability: Detailed error exposure in logs
-        print(f"Token verification error: {str(e)}")
+    except ExpiredSignatureError:
+        print("Token expired")
+        return None
+    except InvalidTokenError:
+        print("Invalid token")
+        return None
+    except Exception:
+        # Generic error message, no sensitive info
+        print("Token verification failed")
         return None
 
 
