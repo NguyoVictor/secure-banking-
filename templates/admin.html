@@ -133,7 +133,7 @@ add explicit confirmation for destructive actions to prevent accidental or unaut
 
         <!-- Vulnerability: No password complexity requirements -->
             <!-- Vulnerability: No CSRF protection -->
-        <div class="section">
+        <!-- <div class="section">
             <h2>Create Admin Account</h2>
             
             <form id="createAdminForm">
@@ -147,11 +147,50 @@ add explicit confirmation for destructive actions to prevent accidental or unaut
                 </div>
                 <button type="submit">Create Admin</button>
             </form>
-        </div>
+        </div> -->
 
-        <div class="section">
+        <!-- SECURITY FIX: Enforce client-side password complexity requirements and
+        add CSRF protection to prevent weak credentials and cross-site request forgery -->
+            <div class="section">
+    <h2>Create Admin Account</h2>
+    <form id="createAdminForm" method="POST">
+        <!-- CSRF Protection -->
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+            <label for="admin_username">Username</label>
+            <input
+                type="text"
+                id="admin_username"
+                name="username"
+                placeholder="Enter admin username"
+                required
+                minlength="4"
+                autocomplete="off">
+        </div>
+        <div class="form-group">
+            <label for="admin_password">Password</label>
+            <input
+                type="password"
+                id="admin_password"
+                name="password"
+                placeholder="Enter admin password"
+                required
+                minlength="8"
+                pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).+$"
+                title="Password must be at least 8 characters long and include uppercase, lowercase, number, and special character">
+            <small>
+                Password must include uppercase, lowercase, number, and special character.
+            </small>
+        </div>
+        <button type="submit">Create Admin</button>
+    </form>
+</div>
+
+        <!-- Vulnerability: No validation of loan approval -->
+         <!-- Vulnerability: No validation of loan approval -->
+        <!-- <div class="section">
             <h2>Pending Loan Applications</h2>
-            <!-- Vulnerability: No validation of loan approval -->
+           
             <table>
                 <thead>
                     <tr>
@@ -170,7 +209,7 @@ add explicit confirmation for destructive actions to prevent accidental or unaut
                         <td>${{ loan[2] }}</td>
                         <td>{{ loan[3] }}</td>
                         <td>
-                            <!-- Vulnerability: No approval confirmation -->
+                            
                             <form class="approve-loan-form" data-loan-id="{{ loan[0] }}">
                                 <button type="submit">Approve</button>
                             </form>
@@ -178,7 +217,52 @@ add explicit confirmation for destructive actions to prevent accidental or unaut
                     </tr>
                     {% endfor %}
                 </tbody>
-            </table>
+            </table> -->
+        
+        <!-- SECURITY FIX: Add CSRF protection, confirmation prompt, and basic
+        validation for loan approval actions to prevent unauthorized or accidental approvals -->
+        <div class="section">
+    <h2>Pending Loan Applications</h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Loan ID</th>
+                <th>User ID</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for loan in pending_loans %}
+            <tr>
+                <td>{{ loan[0] }}</td>
+                <td>{{ loan[1] }}</td>
+
+                <!-- Sanitize display of amount -->
+                <td>${{ "%.2f"|format(loan[2]) }}</td>
+
+                <td>{{ loan[3] }}</td>
+
+                <td>
+                    <form class="approve-loan-form"
+                          method="POST"
+                          data-loan-id="{{ loan[0] }}"
+                          onsubmit="return confirm('Are you sure you want to approve this loan? This action cannot be undone.');">
+
+                        <!-- CSRF Protection -->
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="loan_id" value="{{ loan[0] }}">
+
+                        <button type="submit">Approve</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
 
             <div class="pagination">
                 <div class="page-summary">
