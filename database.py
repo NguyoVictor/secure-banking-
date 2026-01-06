@@ -7,16 +7,58 @@ import time
 # Vulnerable database configuration
 # CWE-259: Use of Hard-coded Password
 # CWE-798: Use of Hard-coded Credentials
+# DB_CONFIG = {
+#     'dbname': os.getenv('DB_NAME', 'vulnerable_bank'),
+#     'user': os.getenv('DB_USER', 'postgres'),
+#     'password': os.getenv('DB_PASSWORD', 'postgres'),  # Hardcoded password in default value
+#     'host': os.getenv('DB_HOST', 'localhost'),
+#     'port': os.getenv('DB_PORT', '5432')
+# }
+
+# Secure database configuration
+# Credentials must be provided via environment variables
 DB_CONFIG = {
-    'dbname': os.getenv('DB_NAME', 'vulnerable_bank'),
-    'user': os.getenv('DB_USER', 'postgres'),
-    'password': os.getenv('DB_PASSWORD', 'postgres'),  # Hardcoded password in default value
-    'host': os.getenv('DB_HOST', 'localhost'),
-    'port': os.getenv('DB_PORT', '5432')
+    'dbname': os.environ['DB_NAME'],
+    'user': os.environ['DB_USER'],
+    'password': os.environ['DB_PASSWORD'],
+    'host': os.environ.get('DB_HOST', 'localhost'),
+    'port': os.environ.get('DB_PORT', '5432')
 }
+
+# Optional safety check: ensure all required env vars are set
+required_vars = ['DB_NAME', 'DB_USER', 'DB_PASSWORD']
+for var in required_vars:
+    if not os.environ.get(var):
+        raise RuntimeError(f"Missing required environment variable: {var}")
 
 # Create a connection pool
 connection_pool = None
+try:
+    connection_pool = pool.SimpleConnectionPool(
+        minconn=1,
+        maxconn=10,
+        **DB_CONFIG
+    )
+except Exception as e:
+    raise RuntimeError(f"Failed to initialize database connection pool: {str(e)}")
+
+def get_db_connection():
+    """
+    Safely retrieve a database connection from the pool
+    """
+    if not connection_pool:
+        raise RuntimeError("Connection pool is not initialized")
+    try:
+        return connection_pool.getconn()
+    except Exception as e:
+        raise RuntimeError(f"Unable to obtain database connection: {str(e)}")
+
+def release_db_connection(conn):
+    """
+    Return a connection back to the pool
+    """
+    if conn and connection_pool:
+        connection_pool.putconn(conn)
 
 def init_connection_pool(min_connections=1, max_connections=10, max_retries=5, retry_delay=2):
     """
