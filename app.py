@@ -1319,32 +1319,79 @@ def metadata_iam_role(current_user):
     }), 404
 
 
-# Loan request endpoint
+# # Loan request endpoint
+# @app.route('/request_loan', methods=['POST'])
+# @token_required
+# def request_loan(current_user):
+#     try:
+#         data = request.get_json()
+#         # Vulnerability: No input validation on amount
+#         amount = float(data.get('amount'))
+        
+#         execute_query(
+#             "INSERT INTO loans (user_id, amount) VALUES (%s, %s)",
+#             (current_user['user_id'], amount),
+#             fetch=False
+#         )
+        
+#         return jsonify({
+#             'status': 'success',
+#             'message': 'Loan requested successfully'
+#         })
+        
+#     except Exception as e:
+#         print(f"Loan request error: {str(e)}")
+#         return jsonify({
+#             'status': 'error',
+#             'message': str(e)
+#         }), 500
+
 @app.route('/request_loan', methods=['POST'])
 @token_required
 def request_loan(current_user):
     try:
-        data = request.get_json()
-        # Vulnerability: No input validation on amount
-        amount = float(data.get('amount'))
-        
+        data = request.get_json() or {}
+        raw_amount = data.get('amount')
+
+        # Input validation
+        if raw_amount is None:
+            return jsonify({'status': 'error', 'message': 'Amount is required'}), 400
+
+        try:
+            amount = float(raw_amount)
+        except (ValueError, TypeError):
+            return jsonify({'status': 'error', 'message': 'Amount must be a number'}), 400
+
+        if amount <= 0:
+            return jsonify({'status': 'error', 'message': 'Amount must be greater than 0'}), 400
+
+        # Optional: enforce a max loan limit
+        MAX_LOAN_AMOUNT = 100_000
+        if amount > MAX_LOAN_AMOUNT:
+            return jsonify({
+                'status': 'error',
+                'message': f'Loan amount cannot exceed {MAX_LOAN_AMOUNT}'
+            }), 400
+
+        # Insert safely
         execute_query(
             "INSERT INTO loans (user_id, amount) VALUES (%s, %s)",
             (current_user['user_id'], amount),
             fetch=False
         )
-        
+
         return jsonify({
             'status': 'success',
             'message': 'Loan requested successfully'
         })
-        
+
     except Exception as e:
         print(f"Loan request error: {str(e)}")
         return jsonify({
             'status': 'error',
-            'message': str(e)
+            'message': 'Internal server error'
         }), 500
+
 
 # Hidden admin endpoint (security through obscurity)
 @app.route('/sup3r_s3cr3t_admin')
