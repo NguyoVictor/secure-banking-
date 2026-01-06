@@ -184,7 +184,7 @@
                 <div id="upload-message"></div>
 
                 <script>
-                function handleProfileUpload(file) {
+                 function handleProfileUpload(file) {
                     const maxSizeMB = 5; // 5MB max
                     const allowedTypes = ['image/png', 'image/jpeg', 'image/gif'];
 
@@ -214,7 +214,7 @@
             </div>
             <!-- Vulnerability: No CSRF protection -->
             <!-- Vulnerability: No amount validation -->
-            <form id="transferForm" class="form-section">
+            <!-- <form id="transferForm" class="form-section">
                 <div class="form-group">
                     <label for="to_account">Recipient Account Number</label>
                     <input type="text" id="to_account" name="to_account" placeholder="Enter recipient's account number" required>
@@ -228,7 +228,31 @@
                     <textarea id="description" name="description" placeholder="Add a note about this transfer" rows="3"></textarea>
                 </div>
                 <button type="submit">Send Money</button>
-            </form>
+            </form> -->
+
+            <!-- SECURITY FIX: Add CSRF protection and validate transfer amount to prevent unauthorized or invalid money transfers -->
+
+            <form id="transferForm" class="form-section" method="POST">
+    <!-- CSRF Protection -->
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="form-group">
+        <label for="to_account">Recipient Account Number</label>
+        <input type="text" id="to_account" name="to_account" placeholder="Enter recipient's account number" required pattern="\d{10,12}" title="Account number must be 10-12 digits">
+    </div>
+
+    <div class="form-group">
+        <label for="amount">Amount</label>
+        <input type="number" id="amount" name="amount" placeholder="Enter amount to transfer" step="0.01" required min="1" max="1000000">
+    </div>
+
+    <div class="form-group">
+        <label for="description">Description (optional)</label>
+        <textarea id="description" name="description" placeholder="Add a note about this transfer" rows="3"></textarea>
+    </div>
+
+    <button type="submit">Send Money</button>
+</form>
         </div>
 
         <!-- Loan request section -->
