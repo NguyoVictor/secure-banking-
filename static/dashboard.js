@@ -416,24 +416,67 @@ function renderVirtualCards() {
     }
     
     // Vulnerability: XSS possible in card rendering
-    container.innerHTML = virtualCards.map(card => `
-        <div class="virtual-card ${card.is_frozen ? 'frozen' : ''}" id="card-${card.id}">
-            <div class="card-type">${card.card_type.toUpperCase()}</div>
-            <div class="card-number">${formatCardNumber(card.card_number)}</div>
-            <div class="card-details">
-                <div>Exp: ${card.expiry_date}</div>
-                <div>CVV: ${card.cvv}</div>
-            </div>
-            <div>Limit: $${card.limit}</div>
-            <div>Balance: $${card.balance}</div>
-            <div class="card-actions">
-                <button onclick="toggleCardFreeze(${card.id})">${card.is_frozen ? 'Unfreeze' : 'Freeze'}</button>
-                <button onclick="showCardDetails(${card.id})">Details</button>
-                <button onclick="showTransactionHistory(${card.id})">History</button>
-                <button onclick="showUpdateLimit(${card.id})">Update Limit</button>
-            </div>
-        </div>
-    `).join('');
+    // container.innerHTML = virtualCards.map(card => `
+    //     <div class="virtual-card ${card.is_frozen ? 'frozen' : ''}" id="card-${card.id}">
+    //         <div class="card-type">${card.card_type.toUpperCase()}</div>
+    //         <div class="card-number">${formatCardNumber(card.card_number)}</div>
+    //         <div class="card-details">
+    //             <div>Exp: ${card.expiry_date}</div>
+    //             <div>CVV: ${card.cvv}</div>
+    //         </div>
+    //         <div>Limit: $${card.limit}</div>
+    //         <div>Balance: $${card.balance}</div>
+    //         <div class="card-actions">
+    //             <button onclick="toggleCardFreeze(${card.id})">${card.is_frozen ? 'Unfreeze' : 'Freeze'}</button>
+    //             <button onclick="showCardDetails(${card.id})">Details</button>
+    //             <button onclick="showTransactionHistory(${card.id})">History</button>
+    //             <button onclick="showUpdateLimit(${card.id})">Update Limit</button>
+    //         </div>
+    //     </div>
+    // `).join('');
+
+    //// SECURITY FIX: Prevent DOM-based XSS by avoiding innerHTML and inline event handlers.
+    container.innerHTML = '';
+
+virtualCards.forEach(card => {
+    const cardDiv = document.createElement('div');
+    cardDiv.className = `virtual-card ${card.is_frozen ? 'frozen' : ''}`;
+    cardDiv.id = `card-${card.id}`;
+
+    const typeDiv = document.createElement('div');
+    typeDiv.className = 'card-type';
+    typeDiv.textContent = card.card_type.toUpperCase();
+
+    const limitDiv = document.createElement('div');
+    limitDiv.textContent = `Limit: $${Number(card.limit).toFixed(2)}`;
+
+    const balanceDiv = document.createElement('div');
+    balanceDiv.textContent = `Balance: $${Number(card.balance).toFixed(2)}`;
+
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'card-actions';
+
+    const freezeBtn = document.createElement('button');
+    freezeBtn.textContent = card.is_frozen ? 'Unfreeze' : 'Freeze';
+    freezeBtn.addEventListener('click', () => toggleCardFreeze(card.id));
+
+    const detailsBtn = document.createElement('button');
+    detailsBtn.textContent = 'Details';
+    detailsBtn.addEventListener('click', () => showCardDetails(card.id));
+
+    const historyBtn = document.createElement('button');
+    historyBtn.textContent = 'History';
+    historyBtn.addEventListener('click', () => showTransactionHistory(card.id));
+
+    const updateBtn = document.createElement('button');
+    updateBtn.textContent = 'Update Limit';
+    updateBtn.addEventListener('click', () => showUpdateLimit(card.id));
+
+    actionsDiv.append(freezeBtn, detailsBtn, historyBtn, updateBtn);
+    cardDiv.append(typeDiv, limitDiv, balanceDiv, actionsDiv);
+    container.appendChild(cardDiv);
+});
+
 }
 
 function formatCardNumber(number) {
