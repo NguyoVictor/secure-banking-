@@ -319,14 +319,12 @@ def index():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    if request.method == 'POST':
-        try:
-            # Flask-WTF CSRF handles CSRF automatically here for form POSTs
-            username = request.form.get('username', '').strip()
-            password = request.form.get('password', '').strip()
+    form = RegisterForm()
 
-            if not username or not password:
-                return render_template('register.html', error='Username and password required')
+    if form.validate_on_submit():
+        try:
+            username = form.username.data.strip()
+            password = form.password.data.strip()
 
             # Check if username already exists
             existing_user = execute_query(
@@ -335,7 +333,8 @@ def register():
                 fetch=True
             )
             if existing_user:
-                return render_template('register.html', error='Username already exists')
+                flash('Username already exists', 'error')
+                return render_template('register.html', form=form)
 
             account_number = generate_account_number()
             hashed_password = generate_password_hash(password)
@@ -355,14 +354,16 @@ def register():
             if not result:
                 raise Exception("User creation failed")
 
-            return render_template('register.html', success='Registration successful! Please login.')
+            flash('Registration successful! Please login.', 'success')
+            return redirect(url_for('login'))
 
         except Exception as e:
             print(f"Registration error: {str(e)}")
-            return render_template('register.html', error='Registration failed')
+            flash('Registration failed', 'error')
+            return render_template('register.html', form=form)
 
-    # GET request
-    return render_template('register.html')
+    # GET request or failed validation
+    return render_template('register.html', form=form)
 
 # @app.route('/login', methods=['GET', 'POST'])
 # def login():
