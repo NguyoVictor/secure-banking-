@@ -11,6 +11,7 @@ import random
 import string
 import html
 from forms import RegistrationForm
+from forms import LoginForm
 import secrets
 import os
 from dotenv import load_dotenv
@@ -430,24 +431,12 @@ def register():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if request.method == 'POST':
+    form = LoginForm()
+
+    if form.validate_on_submit():
         try:
-            data = request.get_json()
-
-            if not data:
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Invalid request'
-                }), 400
-
-            username = data.get('username')
-            password = data.get('password')
-
-            if not username or not password:
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Invalid credentials'
-                }), 401
+            username = form.username.data.strip()
+            password = form.password.data
 
             # Parameterized query (prevents SQL injection)
             query = """
@@ -458,49 +447,38 @@ def login():
             result = execute_query(query, (username,), fetch=True)
 
             if not result:
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Invalid credentials'
-                }), 401
+                flash('Invalid username or password', 'error')
+                return render_template('login.html', form=form)
 
             user = result[0]
 
             # Verify hashed password
             if not check_password_hash(user[2], password):
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Invalid credentials'
-                }), 401
+                flash('Invalid username or password', 'error')
+                return render_template('login.html', form=form)
 
             # Generate JWT
             token = generate_token(user[0], user[1], user[5])
 
-            response = make_response(jsonify({
-                'status': 'success',
-                'message': 'Login successful',
-                'token': token
-            }))
+            response = make_response(redirect(url_for('dashboard')))
 
             # Secure cookie flags
             response.set_cookie(
                 'token',
                 token,
                 httponly=True,
-                secure=True,
+                secure=True,      # set False only in local dev if needed
                 samesite='Strict'
             )
 
-            return response, 200
+            return response
 
         except Exception as e:
             print(f"Login error: {str(e)}")
-            return jsonify({
-                'status': 'error',
-                'message': 'Login failed'
-            }), 500
+            flash('Login failed', 'error')
 
-    return render_template('login.html')
-
+    return render_template('login.html', form=form)
+    
 @app.route('/debug/users')
 def debug_users():
     users = execute_query("SELECT id, username, password, account_number, is_admin FROM users")
