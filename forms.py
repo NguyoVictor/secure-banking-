@@ -15,3 +15,8 @@ class RegistrationForm(FlaskForm):
                message="Password must include uppercase, lowercase, number, special char")
     ])
     submit = SubmitField('Register')
+
+class LoginForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired(), Length(min=4, max=20)])
+    password = PasswordField('Password', validators=[DataRequired()])
+    submit = SubmitField('Login')
