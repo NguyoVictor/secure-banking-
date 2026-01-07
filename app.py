@@ -2117,47 +2117,47 @@ def create_virtual_card(current_user):
 # -------------------------------
 # Get virtual cards
 # -------------------------------
-@app.route('/api/virtual-cards', methods=['GET'])
-@token_required
-def get_virtual_cards(current_user):
-    try:
-        # Pagination parameters
-        page = max(int(request.args.get('page', 1)), 1)
-        per_page = min(int(request.args.get('per_page', 10)), 50)
-        offset = (page - 1) * per_page
+# @app.route('/api/virtual-cards', methods=['GET'])
+# @token_required
+# def get_virtual_cards(current_user):
+#     try:
+#         # Pagination parameters
+#         page = max(int(request.args.get('page', 1)), 1)
+#         per_page = min(int(request.args.get('per_page', 10)), 50)
+#         offset = (page - 1) * per_page
 
-        query = """
-            SELECT id, card_number, expiry_date, card_limit, balance, is_frozen, is_active, created_at, last_used_at, card_type
-            FROM virtual_cards
-            WHERE user_id = %s
-            ORDER BY created_at DESC
-            LIMIT %s OFFSET %s
-        """
-        cards = execute_query(query, (current_user['user_id'], per_page, offset))
+#         query = """
+#             SELECT id, card_number, expiry_date, card_limit, balance, is_frozen, is_active, created_at, last_used_at, card_type
+#             FROM virtual_cards
+#             WHERE user_id = %s
+#             ORDER BY created_at DESC
+#             LIMIT %s OFFSET %s
+#         """
+#         cards = execute_query(query, (current_user['user_id'], per_page, offset))
 
-        return jsonify({
-            'status': 'success',
-            'cards': [{
-                'id': c[0],
-                'card_number': c[1],
-                'expiry_date': c[2],
-                'limit': float(c[3]),
-                'balance': float(c[4]),
-                'is_frozen': c[5],
-                'is_active': c[6],
-                'created_at': str(c[7]),
-                'last_used_at': str(c[8]) if c[8] else None,
-                'card_type': c[9]
-                # CVV not exposed
-            } for c in cards],
-            'page': page,
-            'per_page': per_page,
-            'total_cards': len(cards)
-        })
+#         return jsonify({
+#             'status': 'success',
+#             'cards': [{
+#                 'id': c[0],
+#                 'card_number': c[1],
+#                 'expiry_date': c[2],
+#                 'limit': float(c[3]),
+#                 'balance': float(c[4]),
+#                 'is_frozen': c[5],
+#                 'is_active': c[6],
+#                 'created_at': str(c[7]),
+#                 'last_used_at': str(c[8]) if c[8] else None,
+#                 'card_type': c[9]
+#                 # CVV not exposed
+#             } for c in cards],
+#             'page': page,
+#             'per_page': per_page,
+#             'total_cards': len(cards)
+#         })
 
-    except Exception as e:
-        print(f"Fetch virtual cards error: {str(e)}")
-        return jsonify({'status': 'error', 'message': 'Failed to fetch virtual cards'}), 500
+#     except Exception as e:
+#         print(f"Fetch virtual cards error: {str(e)}")
+#         return jsonify({'status': 'error', 'message': 'Failed to fetch virtual cards'}), 500
 
 # @app.route('/api/transactions', methods=['GET'])
 # @token_required
@@ -2290,6 +2290,7 @@ def get_virtual_cards(current_user):
     except Exception as e:
         print(f"Get virtual cards error: {str(e)}")
         return jsonify({'status': 'error', 'message': 'Failed to fetch virtual cards'}), 500
+
 
 
 # -------------------------------
