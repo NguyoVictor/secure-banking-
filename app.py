@@ -12,6 +12,7 @@ import string
 import html
 from forms import RegistrationForm
 from forms import LoginForm
+from forms import ForgotPasswordForm 
 import secrets
 import os
 from dotenv import load_dotenv
@@ -478,7 +479,7 @@ def login():
             flash('Login failed', 'error')
 
     return render_template('login.html', form=form)
-    
+
 @app.route('/debug/users')
 def debug_users():
     users = execute_query("SELECT id, username, password, account_number, is_admin FROM users")
@@ -1770,14 +1771,12 @@ def create_admin(current_user):
 # Forgot password endpoint (patched)
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
-    if request.method == 'POST':
+    form = ForgotPasswordForm()
+
+    if form.validate_on_submit():
+        username = form.username.data.strip()
+
         try:
-            data = request.get_json() or {}
-            username = data.get('username', '').strip()
-
-            if not username:
-                return jsonify({'status': 'error', 'message': 'Username is required'}), 400
-
             # Parameterized query to prevent SQL injection
             user = execute_query(
                 "SELECT id, email FROM users WHERE username = %s",
@@ -1799,22 +1798,17 @@ def forgot_password():
                 )
 
                 # TODO: Send the reset token to user's email (omitted here)
-                return jsonify({
-                    'status': 'success',
-                    'message': 'If the account exists, a reset PIN has been sent to the registered email.'
-                })
-            else:
-                # Generic response to avoid username enumeration
-                return jsonify({
-                    'status': 'success',
-                    'message': 'If the account exists, a reset PIN has been sent to the registered email.'
-                })
+
+            # Generic response to avoid username/email enumeration
+            success_msg = "If the account exists, a reset PIN has been sent to the registered email."
+            return render_template('forgot_password.html', form=form, success=success_msg)
 
         except Exception as e:
             print(f"Forgot password error: {str(e)}")
-            return jsonify({'status': 'error', 'message': 'Failed to process password reset'}), 500
+            return render_template('forgot_password.html', form=form, error="Failed to process password reset")
 
-    return render_template('forgot_password.html')
+    # GET request or form validation failure
+    return render_template('forgot_password.html', form=form)
 
 # Reset password endpoint (patched)
 @app.route('/reset-password', methods=['GET', 'POST'])
