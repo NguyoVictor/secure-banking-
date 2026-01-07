@@ -30,8 +30,11 @@ class LoginForm(FlaskForm):
 
 
 class ForgotPasswordForm(FlaskForm):
-    email = StringField('Email', validators=[
-        DataRequired(),
-        Email(message="Enter a valid email address")
-    ])
+    username = StringField(
+        'Username',
+        validators=[
+            DataRequired(),
+            Length(min=4, max=20)
+        ]
+    )
     submit = SubmitField('Request Reset PIN')

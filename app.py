@@ -1771,44 +1771,54 @@ def create_admin(current_user):
 # Forgot password endpoint (patched)
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
+    from forms import ForgotPasswordForm
+
     form = ForgotPasswordForm()
 
-    if form.validate_on_submit():
-        username = form.username.data.strip()
-
+    if request.method == 'POST':
         try:
-            # Parameterized query to prevent SQL injection
+            data = request.get_json() or {}
+            username = data.get('username', '').strip()
+
+            if not username:
+                return jsonify({'status': 'error', 'message': 'Username is required'}), 400
+
+            # Query for user by username
             user = execute_query(
-                "SELECT id, email FROM users WHERE username = %s",
+                "SELECT id FROM users WHERE username = %s",
                 (username,)
             )
 
             if user:
-                user_id, email = user[0]
+                user_id = user[0][0]
 
-                # Generate a secure 6-digit reset token
-                reset_token = ''.join(secrets.choice('0123456789') for _ in range(6))
-                hashed_token = generate_password_hash(reset_token)
+                # Secure 6-digit reset PIN
+                reset_pin = f"{secrets.randbelow(900000) + 100000}"
+                hashed_pin = generate_password_hash(reset_pin)
 
-                # Store hashed reset token in database
+                # Store hashed PIN in database with timestamp
                 execute_query(
-                    "UPDATE users SET reset_pin = %s, reset_requested_at = NOW() WHERE id = %s",
-                    (hashed_token, user_id),
+                    "UPDATE users SET reset_pin = %s, reset_requested_at = %s WHERE id = %s",
+                    (hashed_pin, datetime.now(), user_id),
                     fetch=False
                 )
 
-                # TODO: Send the reset token to user's email (omitted here)
+                # TODO: Send PIN to user via email/SMS
 
-            # Generic response to avoid username/email enumeration
-            success_msg = "If the account exists, a reset PIN has been sent to the registered email."
-            return render_template('forgot_password.html', form=form, success=success_msg)
+            # Always return generic message to avoid username enumeration
+            return jsonify({
+                'status': 'success',
+                'message': 'If the username exists, a reset PIN has been sent'
+            })
 
         except Exception as e:
-            print(f"Forgot password error: {str(e)}")
-            return render_template('forgot_password.html', form=form, error="Failed to process password reset")
+            print(f"Forgot-password error: {str(e)}")
+            return jsonify({'status': 'error', 'message': 'Failed to process request'}), 500
 
-    # GET request or form validation failure
+    # GET request: render form
     return render_template('forgot_password.html', form=form)
+
+
 
 # Reset password endpoint (patched)
 @app.route('/reset-password', methods=['GET', 'POST'])
@@ -1926,20 +1936,21 @@ def api_forgot_password():
         if user:
             user_id = user[0][0]
 
-            # Secure 6-digit reset PIN
-            reset_pin = f"{secrets.randbelow(900000) + 100000}"  # 100000-999999
+            # Secure 6-digit reset PIN (100000-999999)
+            reset_pin = f"{secrets.randbelow(900000) + 100000}"
             hashed_pin = generate_password_hash(reset_pin)
 
+            # Store hashed PIN in database with timestamp
             execute_query(
                 "UPDATE users SET reset_pin = %s, reset_requested_at = %s WHERE id = %s",
                 (hashed_pin, datetime.now(), user_id),
                 fetch=False
             )
 
-            # TODO: Send PIN via email/SMS securely
-            # Never expose the PIN in the API response
+            # TODO: Send PIN via secure channel (email/SMS)
+            # Never expose the PIN in API responses
 
-        # Always return generic response to prevent username enumeration
+        # Always return a generic response to prevent username enumeration
         return jsonify({
             'status': 'success',
             'message': 'If the username exists, a reset PIN has been sent'
@@ -1948,6 +1959,7 @@ def api_forgot_password():
     except Exception as e:
         print(f"API forgot-password error: {str(e)}")
         return jsonify({'status': 'error', 'message': 'Failed to process request'}), 500
+
         
 @app.route('/api/transactions', methods=['GET'])
 @token_required
