@@ -33,7 +33,16 @@
     <h1>Create Account</h1>
     <div id="message"></div>
 
-    <form id="registerForm" method="POST">
+    <div class="register-container">
+    <!-- Display feedback messages -->
+    {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
+    {% if success %}
+        <div class="alert alert-success">{{ success }}</div>
+    {% endif %}
+
+    <form id="registerForm" method="POST" action="{{ url_for('register') }}">
         <!-- CSRF Protection -->
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
@@ -52,6 +61,7 @@
         <a href="{{ url_for('login') }}">Already have an account? Login</a>
     </div>
 </div>
+
 
 
     <!-- <script>
