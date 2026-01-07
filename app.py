@@ -10,6 +10,7 @@ from decimal import Decimal, InvalidOperation
 import random
 import string
 import html
+from forms import RegisterForm
 import secrets
 import os
 from dotenv import load_dotenv
