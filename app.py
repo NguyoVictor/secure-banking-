@@ -2717,3 +2717,7 @@ def ai_system_info():
     except Exception as e:
         print(f"AI system info error: {str(e)}")
         return jsonify({'status': 'error', 'message': 'Failed to fetch system info'}), 500
+
+#run server
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)
