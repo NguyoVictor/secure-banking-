@@ -9,114 +9,61 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
-    <!-- Vulnerability: Form doesn't validate input on client side -->
-        <!-- Vulnerability: No CSRF protection -->
-         <!-- Vulnerability: No password complexity requirements -->
-            <!-- Vulnerability: Password in plain text -->
-    <!-- <div class="container">
+    <div class="container">
         <h1>Create Account</h1>
         <div id="message"></div>
-        
-        <form id="registerForm">
-            <input type="text" name="username" placeholder="Username" required>
-            
-            <input type="password" name="password" placeholder="Password" required>
-            <button type="submit">Register</button>
-        </form>
-        <div class="links">
-            <a href="{{ url_for('login') }}">Already have an account? Login</a>
+
+        <div class="register-container">
+            <!-- Display feedback messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form id="registerForm" method="POST" action="{{ url_for('register') }}">
+                {{ form.hidden_tag() }}
+
+                <div class="form-group">
+                    {{ form.username.label }}
+                    {{ form.username(class="form-control", placeholder="Username") }}
+                    {% if form.username.errors %}
+                        <div class="error">
+                            {% for error in form.username.errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    {{ form.password.label }}
+                    {{ form.password(class="form-control", placeholder="Password") }}
+                    {% if form.password.errors %}
+                        <div class="error">
+                            {% for error in form.password.errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <button type="submit">Register</button>
+            </form>
+
+            <div class="links">
+                <a href="{{ url_for('login') }}">Already have an account? Login</a>
+            </div>
         </div>
-    </div> -->
-
-    <!-- SECURITY FIX: Add CSRF token, enforce client-side validation, and recommend password complexity -->
-     <div class="container">
-    <h1>Create Account</h1>
-    <div id="message"></div>
-
-    <div class="register-container">
-    <!-- Display feedback messages -->
-    {% if error %}
-        <div class="alert alert-danger">{{ error }}</div>
-    {% endif %}
-    {% if success %}
-        <div class="alert alert-success">{{ success }}</div>
-    {% endif %}
-
-    <form id="registerForm" method="POST" action="{{ url_for('register') }}">
-        <!-- CSRF Protection -->
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-        <input type="text" name="username" placeholder="Username" required
-               pattern="^[a-zA-Z0-9_]{4,20}$"
-               title="Username must be 4-20 characters, letters, numbers, or underscores only">
-
-        <input type="password" name="password" placeholder="Password" required
-               pattern="^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$"
-               title="Password must be at least 8 characters, include uppercase, lowercase, number, and special character">
-
-        <button type="submit">Register</button>
-    </form>
-
-    <div class="links">
-        <a href="{{ url_for('login') }}">Already have an account? Login</a>
     </div>
-</div>
 
-
-
-    <!-- <script>
-        // Vulnerability: No input sanitization
-        // Vulnerability: No XSS protection
-        document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('registerForm').addEventListener('submit', async (event) => {
-                event.preventDefault();
-                
-                const formData = new FormData(event.target);
-                const jsonData = {};
-                formData.forEach((value, key) => jsonData[key] = value);
-                
-                try {
-                    const response = await fetch('/register', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(jsonData)
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (data.status === 'success') {
-                        // Vulnerability: innerHTML used instead of textContent
-                        document.getElementById('message').innerHTML = data.message;
-                        document.getElementById('message').style.color = 'green';
-                        document.getElementById('message').className = 'success';
-                        
-                        // Redirect to login after 2 seconds
-                        setTimeout(() => {
-                            window.location.href = '/login';
-                        }, 2000);
-                    } else {
-                        document.getElementById('message').innerHTML = data.message;
-                        document.getElementById('message').style.color = 'red';
-                        document.getElementById('message').className = 'error';
-                    }
-                } catch (error) {
-                    document.getElementById('message').innerHTML = 'Registration failed. Please try again.';
-                    document.getElementById('message').style.color = 'red';
-                    document.getElementById('message').className = 'error';
-                }
-            });
-        });
-    </script> -->
-
-    <!-- SECURITY FIX: Use textContent instead of innerHTML, enforce rate limiting, and prevent XSS -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const registerForm = document.getElementById('registerForm');
             const messageDiv = document.getElementById('message');
 
-            // Simple frontend rate limiting: 1 request per 5 seconds
             let lastRequestTime = 0;
             const RATE_LIMIT_MS = 5000;
 
@@ -131,7 +78,6 @@
                 }
                 lastRequestTime = now;
 
-                // Frontend input validation
                 const username = registerForm.username.value.trim();
                 const password = registerForm.password.value.trim();
 
@@ -149,43 +95,29 @@
                     return;
                 }
 
-                const jsonData = { username, password };
-
+                const formData = new FormData(registerForm);
                 try {
-                    const response = await fetch('/register', {
+                    const response = await fetch('{{ url_for("register") }}', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(jsonData),
-                        credentials: 'include' // ensures CSRF cookie is sent
+                        body: formData,
+                        credentials: 'include'
                     });
 
                     const data = await response.json();
-
-                    // Use textContent to prevent XSS
                     messageDiv.textContent = data.message || 'If registration succeeds, you will be redirected to login.';
 
                     if (data.status === 'success') {
                         messageDiv.style.color = 'green';
-                        messageDiv.className = 'success';
-
-                        setTimeout(() => {
-                            window.location.href = '/login';
-                        }, 2000);
+                        setTimeout(() => window.location.href = '/login', 2000);
                     } else {
                         messageDiv.style.color = 'red';
-                        messageDiv.className = 'error';
                     }
                 } catch (error) {
                     messageDiv.textContent = 'Registration failed. Please try again.';
                     messageDiv.style.color = 'red';
-                    messageDiv.className = 'error';
                 }
             });
         });
     </script>
-
-
 </body>
 </html>
