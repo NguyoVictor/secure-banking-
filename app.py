@@ -4,6 +4,7 @@ from flask import request, jsonify, render_template
 from flask import render_template, abort
 from datetime import datetime, timedelta
 from datetime import datetime
+from flask_wtf import CSRFProtect
 from flask import request, jsonify
 from decimal import Decimal, InvalidOperation
 import random
@@ -29,6 +30,8 @@ from urllib.parse import urlparse
 import platform
 
 app = Flask(__name__)
+
+csrf = CSRFProtect(app)  
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 MAX_FILE_SIZE = 2 * 1024 * 1024  # 2 MB
@@ -317,22 +320,12 @@ def index():
 def register():
     if request.method == 'POST':
         try:
-            user_data = request.get_json()
-
-            if not user_data:
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Invalid JSON payload'
-                }), 400
-
-            username = user_data.get('username')
-            password = user_data.get('password')
+            # Flask-WTF CSRF handles CSRF automatically here for form POSTs
+            username = request.form.get('username', '').strip()
+            password = request.form.get('password', '').strip()
 
             if not username or not password:
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Username and password are required'
-                }), 400
+                return render_template('register.html', error='Username and password required')
 
             # Check if username already exists
             existing_user = execute_query(
@@ -340,12 +333,8 @@ def register():
                 (username,),
                 fetch=True
             )
-
             if existing_user:
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Username already exists'
-                }), 400
+                return render_template('register.html', error='Username already exists')
 
             account_number = generate_account_number()
             hashed_password = generate_password_hash(password)
@@ -356,7 +345,6 @@ def register():
                 VALUES (%s, %s, %s)
                 RETURNING id
             """
-
             result = execute_query(
                 query,
                 (username, hashed_password, account_number),
@@ -366,18 +354,13 @@ def register():
             if not result:
                 raise Exception("User creation failed")
 
-            return jsonify({
-                'status': 'success',
-                'message': 'Registration successful! Please login.'
-            }), 201
+            return render_template('register.html', success='Registration successful! Please login.')
 
         except Exception as e:
             print(f"Registration error: {str(e)}")
-            return jsonify({
-                'status': 'error',
-                'message': 'Registration failed'
-            }), 500
+            return render_template('register.html', error='Registration failed')
 
+    # GET request
     return render_template('register.html')
 
 # @app.route('/login', methods=['GET', 'POST'])
