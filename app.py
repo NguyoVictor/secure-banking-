@@ -319,7 +319,7 @@ def index():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    form = RegisterForm()
+    form = RegistrationForm()
 
     if form.validate_on_submit():
         try:
