@@ -1995,12 +1995,21 @@ def api_forgot_password():
 @app.route('/api/transactions', methods=['GET'])
 @token_required
 def api_transactions(current_user):
+    """
+    Fetch transactions for the authenticated user's account.
+
+    Security:
+    - Ensures the user can only query their own account
+    - Prevents unauthorized access to other accounts
+    """
     account_number = request.args.get('account_number', '').strip()
 
     if not account_number:
         return jsonify({'error': 'Account number required'}), 400
 
-    # Ensure the user only queries their own account
+    # ------------------------------
+    # Authorization check
+    # ------------------------------
     if account_number != current_user.get('account_number'):
         return jsonify({'error': 'Unauthorized access to account'}), 403
 
@@ -2013,19 +2022,26 @@ def api_transactions(current_user):
         """
         transactions = execute_query(query, (account_number, account_number))
 
-        transaction_list = [{
-            'id': t[0],
-            'from_account': t[1],
-            'to_account': t[2],
-            'amount': float(t[3]),
-            'timestamp': str(t[4]),
-            'transaction_type': t[5],
-            'description': t[6]
-        } for t in transactions]
+        transaction_list = [
+            {
+                'id': t[0],
+                'from_account': t[1],
+                'to_account': t[2],
+                'amount': float(t[3]),
+                'timestamp': str(t[4]),
+                'transaction_type': t[5],
+                'description': t[6]
+            }
+            for t in transactions
+        ]
 
-        return jsonify({'transactions': transaction_list, 'account_number': account_number})
+        return jsonify({
+            'transactions': transaction_list,
+            'account_number': account_number
+        })
 
     except Exception as e:
+        # Optional: log the error for debugging
         print(f"Transaction fetch error: {str(e)}")
         return jsonify({'status': 'error', 'message': 'Failed to fetch transactions'}), 500
 
@@ -2037,42 +2053,61 @@ def api_transactions(current_user):
 @token_required
 def create_virtual_card(current_user):
     try:
-        data = request.get_json() or {}
-        card_limit = float(data.get('card_limit', 1000.0))
+        data = request.get_json(silent=True) or {}
+
+        # Validate card limit
+        try:
+            card_limit = float(data.get('card_limit', 1000.0))
+        except (TypeError, ValueError):
+            return jsonify({'status': 'error', 'message': 'Invalid card limit'}), 400
+
         if card_limit <= 0:
             return jsonify({'status': 'error', 'message': 'Invalid card limit'}), 400
 
-        card_type = data.get('card_type', 'standard').strip().lower()
-        if card_type not in ['standard', 'premium', 'gold']:
+        # Validate card type
+        card_type = str(data.get('card_type', 'standard')).strip().lower()
+        if card_type not in {'standard', 'premium', 'gold'}:
             card_type = 'standard'
 
+        # Secure generators (already patched earlier)
         card_number = generate_card_number()
         cvv = generate_cvv()
-        expiry_date = (datetime.now() + timedelta(days=365)).strftime('%m/%y')
 
-        # Use parameterized query to prevent SQL injection
+        expiry_date = (datetime.utcnow() + timedelta(days=365)).strftime('%m/%y')
+
         query = """
-            INSERT INTO virtual_cards 
+            INSERT INTO virtual_cards
             (user_id, card_number, cvv, expiry_date, card_limit, card_type)
             VALUES (%s, %s, %s, %s, %s, %s)
             RETURNING id
         """
-        result = execute_query(query, (current_user['user_id'], card_number, cvv, expiry_date, card_limit, card_type))
 
-        if result:
-            return jsonify({
-                'status': 'success',
-                'message': 'Virtual card created successfully',
-                'card_details': {
-                    'card_number': card_number,
-                    'expiry_date': expiry_date,
-                    'limit': card_limit,
-                    'type': card_type
-                    # CVV not returned for security
-                }
-            })
+        result = execute_query(
+            query,
+            (
+                current_user['user_id'],
+                card_number,
+                cvv,
+                expiry_date,
+                card_limit,
+                card_type
+            )
+        )
 
-        return jsonify({'status': 'error', 'message': 'Failed to create virtual card'}), 500
+        if not result:
+            return jsonify({'status': 'error', 'message': 'Failed to create virtual card'}), 500
+
+        return jsonify({
+            'status': 'success',
+            'message': 'Virtual card created successfully',
+            'card_details': {
+                'card_number': card_number,
+                'expiry_date': expiry_date,
+                'limit': card_limit,
+                'type': card_type
+                # CVV intentionally NOT returned
+            }
+        }), 201
 
     except Exception as e:
         print(f"Create virtual card error: {str(e)}")
@@ -2124,94 +2159,94 @@ def get_virtual_cards(current_user):
         print(f"Fetch virtual cards error: {str(e)}")
         return jsonify({'status': 'error', 'message': 'Failed to fetch virtual cards'}), 500
 
-@app.route('/api/transactions', methods=['GET'])
-@token_required
-def api_transactions(current_user):
-    account_number = request.args.get('account_number', '').strip()
+# @app.route('/api/transactions', methods=['GET'])
+# @token_required
+# def api_transactions(current_user):
+#     account_number = request.args.get('account_number', '').strip()
 
-    if not account_number:
-        return jsonify({'error': 'Account number required'}), 400
+#     if not account_number:
+#         return jsonify({'error': 'Account number required'}), 400
 
-    try:
-        transactions = execute_query(
-            """
-            SELECT id, from_account, to_account, amount, timestamp, transaction_type, description
-            FROM transactions
-            WHERE from_account = %s OR to_account = %s
-            ORDER BY timestamp DESC
-            """,
-            (account_number, account_number)
-        )
+#     try:
+#         transactions = execute_query(
+#             """
+#             SELECT id, from_account, to_account, amount, timestamp, transaction_type, description
+#             FROM transactions
+#             WHERE from_account = %s OR to_account = %s
+#             ORDER BY timestamp DESC
+#             """,
+#             (account_number, account_number)
+#         )
 
-        return jsonify({
-            'transactions': [
-                {
-                    'id': t[0],
-                    'from_account': t[1],
-                    'to_account': t[2],
-                    'amount': float(t[3]),
-                    'timestamp': str(t[4]),
-                    'transaction_type': t[5],
-                    'description': t[6]
-                }
-                for t in transactions
-            ],
-            'account_number': account_number
-        })
+#         return jsonify({
+#             'transactions': [
+#                 {
+#                     'id': t[0],
+#                     'from_account': t[1],
+#                     'to_account': t[2],
+#                     'amount': float(t[3]),
+#                     'timestamp': str(t[4]),
+#                     'transaction_type': t[5],
+#                     'description': t[6]
+#                 }
+#                 for t in transactions
+#             ],
+#             'account_number': account_number
+#         })
 
-    except Exception:
-        return jsonify({'error': 'Failed to fetch transactions'}), 500
+#     except Exception:
+#         return jsonify({'error': 'Failed to fetch transactions'}), 500
 
 
 # -------------------------------
 # Create virtual card (patched)
 # -------------------------------
-@app.route('/api/virtual-cards/create', methods=['POST'])
-@token_required
-def create_virtual_card(current_user):
-    try:
-        data = request.get_json() or {}
-        card_limit = float(data.get('card_limit', 1000.0))
-        if card_limit <= 0:
-            return jsonify({'status': 'error', 'message': 'Invalid card limit'}), 400
+# @app.route('/api/virtual-cards/create', methods=['POST'])
+# @token_required
+# def create_virtual_card(current_user):
+#     try:
+#         data = request.get_json() or {}
+#         card_limit = float(data.get('card_limit', 1000.0))
+#         if card_limit <= 0:
+#             return jsonify({'status': 'error', 'message': 'Invalid card limit'}), 400
 
-        card_type = data.get('card_type', 'standard').strip().lower()
-        if card_type not in ['standard', 'premium', 'gold']:
-            card_type = 'standard'
+#         card_type = data.get('card_type', 'standard').strip().lower()
+#         if card_type not in ['standard', 'premium', 'gold']:
+#             card_type = 'standard'
 
-        card_number = generate_card_number()
-        cvv = generate_cvv()
+#         card_number = generate_card_number()
+#         cvv = generate_cvv()
 
-        expiry_date = (datetime.now() + timedelta(days=365)).strftime('%m/%y')
+#         expiry_date = (datetime.now() + timedelta(days=365)).strftime('%m/%y')
 
-        query = """
-            INSERT INTO virtual_cards
-            (user_id, card_number, cvv, expiry_date, card_limit, card_type)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            RETURNING id
-        """
-        result = execute_query(query, (current_user['user_id'], card_number, cvv, expiry_date, card_limit, card_type))
+#         query = """
+#             INSERT INTO virtual_cards
+#             (user_id, card_number, cvv, expiry_date, card_limit, card_type)
+#             VALUES (%s, %s, %s, %s, %s, %s)
+#             RETURNING id
+#         """
+#         result = execute_query(query, (current_user['user_id'], card_number, cvv, expiry_date, card_limit, card_type))
 
-        if result:
+#         if result:
 
-            return jsonify({
-                'status': 'success',
-                'message': 'Virtual card created successfully',
-                'card_details': {
-                    'card_number': card_number,
+#             return jsonify({
+#                 'status': 'success',
+#                 'message': 'Virtual card created successfully',
+#                 'card_details': {
+#                     'card_number': card_number,
 
-                    'expiry_date': expiry_date,
-                    'limit': card_limit,
-                    'type': card_type
-                    # CVV not returned for security
-                }
-            })
+#                     'expiry_date': expiry_date,
+#                     'limit': card_limit,
+#                     'type': card_type
+#                     # CVV not returned for security
+#                 }
+#             })
 
-        return jsonify({'status': 'error', 'message': 'Failed to create virtual card'}), 500
+#         return jsonify({'status': 'error', 'message': 'Failed to create virtual card'}), 500
 
-    except Exception as e:
-        print(f"Create virtual card error: {str(e)}")
-        return jsonify({'status': 'error', 'message': 'Failed to create virtual card'}), 500
+#     except Exception as e:
+#         print(f"Create virtual card error: {str(e)}")
+#         return jsonify({'status': 'error', 'message': 'Failed to create virtual card'}), 500
 
 @app.route('/api/virtual-cards', methods=['GET'])
 @token_required
